@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A BotanIA cria sistemas de automação intuitivos que fortalecem negócios por meio de uma IA ética e centrada no ser humano.">
+<title>BotanIA | Inteligência Intuitiva para Negócios Modernos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'%3E%3Ccircle cx='20' cy='4' r='2.4' fill='%23445E45'/%3E%3Cline x1='20' y1='7' x2='20' y2='34' stroke='%23445E45' stroke-width='2'/%3E%3Cpath d='M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z' stroke='%23445E45' stroke-width='2'/%3E%3Cpath d='M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z' stroke='%23445E45' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FCFBF8;
+  --bg-alt:#F2EFE7;
+  --ink:#23201B;
+  --ink-soft:#5B5245;
+  --sage:#445E45;
+  --sage-mid:#7C9770;
+  --clay:#AD6B3F;
+  --teal:#5C8C82;
+  --teal-soft:#A9C7C0;
+  --card:rgba(255,255,255,0.7);
+  --card-solid:#FFFFFF;
+  --hair:rgba(35,32,27,0.11);
+  --glow-shadow:0 20px 44px -30px rgba(69,92,80,0.2);
+  --r-sm:4px;
+  --r-md:10px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Inter', sans-serif;
+  font-weight:400;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,.wordmark{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:500;
+  color:var(--ink);
+  letter-spacing:-0.01em;
+}
+.eyebrow{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:12px;
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  color:var(--clay);
+  font-weight:600;
+  margin-bottom:16px;
+  display:block;
+}
+a{color:inherit; text-decoration:none;}
+img,svg{display:block;}
+.wrap{max-width:1100px; margin:0 auto; padding:0 32px;}
+
+/* ---------- ambient glow (futuristic touch) ---------- */
+.glow{position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0;}
+.grid-tex{
+  position:absolute; inset:0; z-index:0; pointer-events:none;
+  background-image:radial-gradient(rgba(35,32,27,0.06) 1px, transparent 1px);
+  background-size:26px 26px;
+  mask-image:radial-gradient(ellipse 60% 55% at 50% 30%, black 30%, transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse 60% 55% at 50% 30%, black 30%, transparent 75%);
+}
+
+/* ---------- header ---------- */
+header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(252,251,248,0.82);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--hair);
+}
+.nav{display:flex; align-items:center; justify-content:space-between; padding:19px 32px; max-width:1100px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:10px; color:var(--sage);}
+.brand .wordmark{font-size:20px;}
+.brand svg{width:18px; height:22px;}
+nav.links{display:flex; gap:32px; align-items:center;}
+nav.links a.textlink{font-size:14px; color:var(--ink); font-weight:500; position:relative; padding-bottom:4px;}
+nav.links a.textlink::after{
+  content:''; position:absolute; left:0; right:0; bottom:0; height:1px;
+  background:linear-gradient(90deg, var(--teal), var(--clay));
+  transform:scaleX(0); transform-origin:right; transition:transform .35s ease;
+}
+nav.links a.textlink:hover::after{transform:scaleX(1); transform-origin:left;}
+.lang-link{font-size:13px; font-weight:600; color:var(--clay); letter-spacing:0.03em;}
+
+.cta-btn{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:13px; letter-spacing:0.03em; font-weight:600;
+  color:var(--bg);
+  background:linear-gradient(135deg, var(--sage), var(--teal));
+  padding:13px 26px; border-radius:var(--r-sm);
+  border:1px solid transparent;
+  transition:box-shadow .3s ease, transform .3s ease, filter .3s ease;
+  white-space:nowrap; display:inline-block;
+  box-shadow:0 10px 26px -14px rgba(69,92,80,0.55);
+}
+.cta-btn:hover{transform:translateY(-1px); box-shadow:0 14px 32px -12px rgba(92,140,130,0.55); filter:brightness(1.05);}
+.cta-btn.ghost{background:transparent; color:var(--ink); border-color:var(--hair); box-shadow:none;}
+.cta-btn.ghost:hover{border-color:var(--teal); color:var(--sage); box-shadow:0 0 0 3px rgba(92,140,130,0.1);}
+.cta-btn.small{padding:10px 20px; font-size:12.5px;}
+
+/* ---------- growth line ---------- */
+.vine{
+  position:fixed; left:26px; top:0; width:40px; height:100vh;
+  z-index:1; pointer-events:none; display:none;
+}
+@media (min-width:1300px){ .vine{display:block;} }
+.vine-stem{position:absolute; left:50%; top:0; width:1.5px; height:100%; background:var(--hair); transform:translateX(-50%); border-radius:2px;}
+.vine-fill{position:absolute; left:50%; bottom:0; width:1.5px; height:0%; background:linear-gradient(to top, var(--sage-mid), var(--teal)); transform:translateX(-50%); transition:height .2s linear; border-radius:2px;}
+.vine-seed{
+  position:absolute; left:50%; bottom:0%; width:7px; height:7px; border-radius:50%;
+  background:var(--teal); box-shadow:0 0 0 5px rgba(92,140,130,0.16), 0 0 12px rgba(92,140,130,0.55);
+  transform:translate(-50%,50%); transition:bottom .2s linear; z-index:1;
+}
+.vine-dot{position:absolute; left:50%; border-radius:50%; opacity:.55;}
+
+/* ---------- hero ---------- */
+.hero{position:relative; padding:132px 32px 108px; text-align:center; overflow:hidden;}
+.hero-mark{width:50px; height:60px; margin:0 auto 28px; color:var(--sage); position:relative; z-index:1; opacity:0; animation:riseIn 1.1s ease forwards .15s;}
+.hero h1{
+  font-size:clamp(46px, 7vw, 78px); line-height:1.05; font-weight:500; position:relative; z-index:1;
+  background:linear-gradient(100deg, var(--ink) 30%, var(--sage) 70%, var(--teal) 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  opacity:0; animation:riseIn 1.1s ease forwards .35s;
+}
+.hero .tagline{font-family:'Space Grotesk', sans-serif; font-weight:500; font-size:18px; color:var(--sage); margin-top:20px; position:relative; z-index:1; opacity:0; animation:riseIn 1.1s ease forwards .55s;}
+.hero p.lede{max-width:600px; margin:28px auto 42px; font-size:17.5px; color:var(--ink-soft); position:relative; z-index:1; opacity:0; animation:riseIn 1.1s ease forwards .75s;}
+.hero .actions{display:flex; gap:16px; justify-content:center; flex-wrap:wrap; position:relative; z-index:1; opacity:0; animation:riseIn 1.1s ease forwards .95s;}
+@keyframes riseIn{from{opacity:0; transform:translateY(18px);} to{opacity:1; transform:translateY(0);}}
+@keyframes pulseGlow{0%,100%{opacity:.5;} 50%{opacity:.85;}}
+
+/* ---------- sections ---------- */
+section{position:relative; padding:96px 32px;}
+.section-head{text-align:center; max-width:640px; margin:0 auto 68px; position:relative; z-index:1;}
+.section-head h2{font-size:clamp(30px,4vw,42px); line-height:1.18;}
+.section-head p{color:var(--ink-soft); font-size:16px; margin-top:16px;}
+
+/* ---------- animated section divider ---------- */
+.section-divider{
+  display:flex; align-items:center; justify-content:center; gap:12px;
+  width:96px; margin:0 auto 64px; position:relative; z-index:1;
+  opacity:0; transform:scaleX(.3); transition:opacity .9s ease, transform 1s cubic-bezier(.16,1,.3,1);
+}
+.section-divider.in-view{opacity:1; transform:scaleX(1);}
+.section-divider .seg{flex:1; height:1px; background:linear-gradient(90deg, transparent, var(--hair));}
+.section-divider .seg.right{background:linear-gradient(90deg, var(--hair), transparent);}
+.section-divider .dot{width:4px; height:4px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px rgba(92,140,130,0.65); flex-shrink:0;}
+
+/* problem */
+.problem-grid{display:grid; grid-template-columns:1fr 1fr; gap:72px; align-items:center; max-width:1020px; margin:0 auto; position:relative; z-index:1;}
+.problem-grid h2{font-size:clamp(28px,4vw,38px); line-height:1.22; margin-bottom:22px;}
+.problem-grid p{color:var(--ink-soft); font-size:16px;}
+.problem-list{list-style:none; margin-top:28px;}
+.problem-list li{padding:16px 0 16px 30px; border-top:1px solid var(--hair); font-family:'Space Grotesk', sans-serif; font-size:16.5px; font-weight:500; position:relative;}
+.problem-list li::before{content:''; position:absolute; left:0; top:24px; width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 8px rgba(92,140,130,0.6);}
+.problem-list li:last-child{border-bottom:1px solid var(--hair);}
+
+/* stages */
+.stages{display:grid; grid-template-columns:repeat(3,1fr); gap:44px; max-width:980px; margin:0 auto; position:relative; z-index:1;}
+.stage{text-align:center; padding:0 12px;}
+.stage svg{width:42px; height:42px; margin:0 auto 24px; color:var(--sage-mid);}
+.stage .stage-label{font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--clay); margin-bottom:10px; display:block; font-weight:600;}
+.stage h3{font-size:22px; margin-bottom:12px;}
+.stage p{color:var(--ink-soft); font-size:15px;}
+
+/* capabilities */
+.capabilities{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; max-width:1100px; margin:0 auto; position:relative; z-index:1; background:var(--hair); border:1px solid var(--hair); border-radius:var(--r-md); overflow:hidden;}
+.capability{
+  padding:34px 28px; background:var(--card-solid); position:relative; overflow:hidden;
+  transition:transform .3s ease, background .3s ease;
+}
+.capability::before{
+  content:''; position:absolute; top:0; left:-100%; width:100%; height:2px;
+  background:linear-gradient(90deg, transparent, var(--teal), var(--clay), transparent);
+  transition:left .6s ease;
+}
+.capability:hover{transform:translateY(-2px); background:var(--bg-alt);}
+.capability:hover::before{left:0;}
+.capability svg{width:26px; height:26px; margin-bottom:20px; color:var(--sage);}
+.capability h3{font-size:17px; margin-bottom:10px;}
+.capability p{color:var(--ink-soft); font-size:14.5px;}
+
+/* about founder */
+.about-grid{display:grid; grid-template-columns:290px 1fr; gap:56px; align-items:center; max-width:920px; margin:0 auto; text-align:left; position:relative; z-index:1;}
+.about-photo{width:100%; aspect-ratio:3/4; overflow:hidden; border-radius:var(--r-md); box-shadow:var(--glow-shadow); position:relative;}
+.about-photo::after{content:''; position:absolute; inset:0; border-radius:var(--r-md); box-shadow:inset 0 0 0 1px rgba(92,140,130,0.25);}
+.about-photo img{width:100%; height:100%; object-fit:cover; display:block;}
+.about-copy p{color:var(--ink-soft); font-size:16px; margin-bottom:16px;}
+.about-copy p:last-child{margin-bottom:0;}
+
+/* testimonials */
+.testimonials{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; max-width:1100px; margin:0 auto; position:relative; z-index:1; background:var(--hair); border:1px solid var(--hair); border-radius:var(--r-md); overflow:hidden;}
+.testimony{
+  padding:38px 30px; background:var(--card-solid); position:relative;
+  display:flex; flex-direction:column; height:100%;
+  transition:background .3s ease;
+}
+.testimony:hover{background:var(--bg-alt);}
+.testimony svg{width:22px; height:16px; margin-bottom:20px; color:var(--clay);}
+.testimony p{font-size:15.5px; line-height:1.7; flex-grow:1;}
+.testimony .attr{margin-top:22px; font-size:12.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--sage); font-weight:600;}
+
+/* engagement */
+.services{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; max-width:1100px; margin:0 auto; position:relative; z-index:1; background:var(--hair); border:1px solid var(--hair); border-radius:var(--r-md); overflow:hidden;}
+.service-card{
+  padding:42px 32px; background:var(--card-solid); position:relative; overflow:hidden;
+  transition:background .3s ease;
+}
+.service-card::before{
+  content:''; position:absolute; top:0; left:-100%; width:100%; height:2px;
+  background:linear-gradient(90deg, transparent, var(--teal), var(--clay), transparent);
+  transition:left .6s ease;
+}
+.service-card:hover{background:var(--bg-alt);}
+.service-card:hover::before{left:0;}
+.service-card .num{font-family:'Space Grotesk', sans-serif; font-size:14px; color:var(--clay); display:block; margin-bottom:20px; font-weight:600; letter-spacing:0.04em;}
+.service-card h3{font-size:20px; margin-bottom:14px;}
+.service-card p{color:var(--ink-soft); font-size:15px;}
+
+/* final cta */
+.final-cta{text-align:center; padding:120px 32px 140px; overflow:hidden; position:relative;}
+.final-cta h2{
+  font-size:clamp(34px,5.5vw,58px); margin-bottom:22px; position:relative; z-index:1;
+  background:linear-gradient(100deg, var(--ink) 25%, var(--sage) 65%, var(--teal) 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.final-cta p{color:var(--ink-soft); font-size:17px; max-width:480px; margin:0 auto 40px; position:relative; z-index:1;}
+.final-cta .actions-wrap{position:relative; z-index:1;}
+
+footer{padding:52px 32px; text-align:center; border-top:1px solid var(--hair);}
+footer .wordmark{font-size:18px; margin-bottom:8px; color:var(--sage);}
+footer p{font-size:13px; color:var(--ink-soft);}
+footer a{color:var(--clay); font-weight:500;}
+
+@media (max-width:820px){
+  .problem-grid{grid-template-columns:1fr; gap:40px;}
+  .stages{grid-template-columns:1fr; gap:56px;}
+  .capabilities{grid-template-columns:1fr;}
+  .testimonials{grid-template-columns:1fr;}
+  .services{grid-template-columns:1fr;}
+  .about-grid{grid-template-columns:1fr; gap:32px; text-align:center;}
+  .about-photo{max-width:260px; margin:0 auto;}
+  .about-copy{text-align:left;}
+  nav.links{gap:14px;}
+  nav.links a.textlink{display:none;}
+  .cta-btn.small{padding:9px 16px; font-size:11.5px;}
+  section{padding:84px 24px;}
+  .hero{padding:104px 24px 84px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="brand">
+      <svg viewBox="0 0 40 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="4" r="1.6" fill="currentColor"/>
+        <line x1="20" y1="6" x2="20" y2="30" stroke="currentColor" stroke-width="1.1"/>
+        <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+      </svg>
+      <span class="wordmark">BotanIA</span>
+    </div>
+    <nav class="links">
+      <a class="textlink" href="#how">Processo</a>
+      <a class="textlink" href="#capabilities">Capacidades</a>
+      <a class="textlink" href="#why">Sobre</a>
+      <a href="#contact" class="cta-btn ghost small">Agendar uma chamada</a>
+      <a href="index.html" class="lang-link">EN</a>
+    </nav>
+  </div>
+</header>
+
+<div style="position:relative;">
+  <div class="vine" id="vine">
+    <div class="vine-stem"></div>
+    <div class="vine-fill" id="vineFill"></div>
+    <div class="vine-seed" id="vineSeed"></div>
+    <div class="vine-dot" style="top:11%; left:27px; width:5px; height:5px; background:var(--teal);"></div>
+    <div class="vine-dot" style="top:22%; left:13px; width:4px; height:4px; background:var(--sage-mid);"></div>
+    <div class="vine-dot" style="top:35%; left:27px; width:6px; height:6px; background:var(--sage-mid);"></div>
+    <div class="vine-dot" style="top:46%; left:13px; width:4px; height:4px; background:var(--teal);"></div>
+    <div class="vine-dot" style="top:58%; left:27px; width:5px; height:5px; background:var(--teal);"></div>
+    <div class="vine-dot" style="top:70%; left:13px; width:4px; height:4px; background:var(--sage-mid);"></div>
+    <div class="vine-dot" style="top:82%; left:27px; width:6px; height:6px; background:var(--sage-mid);"></div>
+    <div class="vine-dot" style="top:93%; left:13px; width:4px; height:4px; background:var(--teal);"></div>
+  </div>
+
+  <section class="hero">
+    <div class="grid-tex"></div>
+    <div class="glow" style="width:220px; height:220px; background:var(--sage-mid); opacity:.07; top:-100px; left:8%; animation:pulseGlow 7s ease-in-out infinite;"></div>
+    <div class="glow" style="width:200px; height:200px; background:var(--teal); opacity:.06; top:-40px; right:8%; left:auto; animation:pulseGlow 9s ease-in-out infinite 1s;"></div>
+    <div class="hero-mark">
+      <svg viewBox="0 0 40 46" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <circle cx="20" cy="4" r="1.8" fill="currentColor"/>
+        <line x1="20" y1="6" x2="20" y2="34" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1>BotanIA</h1>
+    <p class="tagline">Inteligência Intuitiva para Negócios Modernos</p>
+    <p class="lede">A BotanIA é enraizada na botânica, o estudo de como os seres vivos crescem, com a IA representando Inteligência Artificial. Duas ideias em uma só palavra: tecnologia e crescimento, trabalhando juntas. Nossa proposta é simples: um trabalho mais leve, e tempo que volta para você.</p>
+    <div class="actions">
+      <a href="https://calendar.app.google/EzstrZ1At13f3HJfA" target="_blank" rel="noopener noreferrer" class="cta-btn">Agendar uma consulta</a>
+      <a href="#how" class="cta-btn ghost">Ver como funciona</a>
+    </div>
+  </section>
+
+  <section id="problem">
+    <div class="section-divider"><span class="seg"></span><span class="dot"></span><span class="seg right"></span></div>
+    <div class="wrap problem-grid">
+      <div>
+        <span class="eyebrow">O problema</span>
+        <h2>Crescer não deveria custar o seu tempo</h2>
+        <p>Todo empreendedor enfrenta o mesmo obstáculo. Quanto mais você cresce, mais o seu tempo é consumido por tarefas que não precisam necessariamente de você e isso se acumula silenciosamente.</p>
+      </div>
+      <ul class="problem-list">
+        <li>Contratos esperando assinatura</li>
+        <li>Relatórios feitos manualmente toda semana</li>
+        <li>Agendas lotadas e reativas</li>
+        <li>Dados de clientes espalhados em várias ferramentas</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="section-divider"><span class="seg"></span><span class="dot"></span><span class="seg right"></span></div>
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Como funciona</span>
+        <h2>Raiz. Cresce. Floresce.</h2>
+      </div>
+      <div class="stages">
+        <div class="stage">
+          <svg viewBox="0 0 44 44" fill="none"><path d="M22 8v20M22 8c-5 0-9 4-9 9M22 8c5 0 9 4 9 9" stroke="currentColor" stroke-width="1.3"/><circle cx="22" cy="32" r="3" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span class="stage-label">Descoberta</span>
+          <h3>Raiz</h3>
+          <p>Uma conversa de verdade sobre para onde o seu tempo está indo. Não é um discurso de vendas, é uma sessão de trabalho.</p>
+        </div>
+        <div class="stage">
+          <svg viewBox="0 0 44 44" fill="none"><path d="M22 34V14M22 14c-4-4-4-9-4-9M22 14c4-4 4-9 4-9" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span class="stage-label">Construção</span>
+          <h3>Cresce</h3>
+          <p>A BotanIA projeta e constrói um agente de IA desenhado especificamente para esse problema, não uma ferramenta genérica.</p>
+        </div>
+        <div class="stage">
+          <svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="12" r="5" stroke="currentColor" stroke-width="1.3"/><line x1="22" y1="17" x2="22" y2="34" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span class="stage-label">Monitoramento</span>
+          <h3>Floresce</h3>
+          <p>Depois de no ar, a BotanIA continua acompanhando, para que continue funcionando conforme o seu negócio muda e cresce.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="capabilities">
+    <div class="section-divider"><span class="seg"></span><span class="dot"></span><span class="seg right"></span></div>
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">O que o seu agente pode fazer</span>
+        <p>Cada capacidade aqui vem de experiência real em suporte executivo, não de um modelo genérico de automação.</p>
+      </div>
+      <div class="capabilities">
+        <div class="capability">
+          <svg viewBox="0 0 30 30" fill="none"><rect x="5" y="4" width="20" height="24" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="9" y1="11" x2="21" y2="11" stroke="currentColor" stroke-width="1.3"/><line x1="9" y1="16" x2="21" y2="16" stroke="currentColor" stroke-width="1.3"/><line x1="9" y1="21" x2="16" y2="21" stroke="currentColor" stroke-width="1.3"/></svg>
+          <h3>Contratos e acordos</h3>
+          <p>Criação de SOW, envio de DocuSign e acompanhamento de assinaturas, do rascunho até a conclusão.</p>
+        </div>
+        <div class="capability">
+          <svg viewBox="0 0 30 30" fill="none"><path d="M6 24V14M14 24V8M22 24V17" stroke="currentColor" stroke-width="1.3"/><line x1="4" y1="24" x2="26" y2="24" stroke="currentColor" stroke-width="1.3"/></svg>
+          <h3>Relatórios</h3>
+          <p>Relatórios recorrentes de negócio e status, entregues no prazo, sempre.</p>
+        </div>
+        <div class="capability">
+          <svg viewBox="0 0 30 30" fill="none"><rect x="5" y="6" width="20" height="19" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="5" y1="11" x2="25" y2="11" stroke="currentColor" stroke-width="1.3"/><line x1="10" y1="4" x2="10" y2="8" stroke="currentColor" stroke-width="1.3"/><line x1="20" y1="4" x2="20" y2="8" stroke="currentColor" stroke-width="1.3"/></svg>
+          <h3>Agenda e organização</h3>
+          <p>Gestão de agenda executiva, coordenação de reuniões e logística de viagens, de forma proativa.</p>
+        </div>
+        <div class="capability">
+          <svg viewBox="0 0 30 30" fill="none"><circle cx="15" cy="10" r="4" stroke="currentColor" stroke-width="1.3"/><path d="M6 25c0-5 4-8 9-8s9 3 9 8" stroke="currentColor" stroke-width="1.3"/></svg>
+          <h3>CRM e gestão de clientes</h3>
+          <p>Integração de novos clientes, atualização de banco de dados e acompanhamento de follow up, para nenhum relacionamento esfriar.</p>
+        </div>
+        <div class="capability">
+          <svg viewBox="0 0 30 30" fill="none"><path d="M5 8h20v14H5z" stroke="currentColor" stroke-width="1.3"/><path d="M5 8l10 8 10-8" stroke="currentColor" stroke-width="1.3"/></svg>
+          <h3>Comunicação</h3>
+          <p>Correspondências, atas de reunião e follow ups que não ficam esquecidos.</p>
+        </div>
+        <div class="capability">
+          <svg viewBox="0 0 30 30" fill="none"><rect x="4" y="6" width="9" height="9" stroke="currentColor" stroke-width="1.3"/><rect x="17" y="6" width="9" height="9" stroke="currentColor" stroke-width="1.3"/><rect x="4" y="17" width="9" height="9" stroke="currentColor" stroke-width="1.3"/><rect x="17" y="17" width="9" height="9" stroke="currentColor" stroke-width="1.3"/></svg>
+          <h3>Coordenação de projetos</h3>
+          <p>Acompanhamento de tarefas, prazos e atualizações de status em toda a equipe.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="why">
+    <div class="glow" style="width:220px; height:220px; background:var(--teal); opacity:.06; top:15%; left:-120px;"></div>
+    <div class="section-divider"><span class="seg"></span><span class="dot"></span><span class="seg right"></span></div>
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Sobre a fundadora</span>
+        <h2>Oi, eu sou a Daiani</h2>
+      </div>
+      <div class="about-grid">
+        <div class="about-photo">
+          <img src="images/IMG_5567.jpg" alt="Daiani, fundadora da BotanIA">
+        </div>
+        <div class="about-copy">
+          <p>Por mais de dez anos, apoiei executivos e equipes em organizações globais e de ritmo acelerado, mais recentemente no escritório do Presidente e CEO da Qualcomm. Antes disso, atuei como líder de equipe contratada no Google e trabalhei ao lado de líderes seniores na Baker Tilly, BASF e KPMG. Essas experiências moldaram a forma como antecipo necessidades, conecto pessoas e prioridades, e crio sistemas que permitem que líderes se concentrem no que realmente importa. Baseada em San Diego, trago uma perspectiva global através da minha fluência em português, inglês e espanhol.</p>
+          <p>Fundei a BotanIA para ajudar empreendedores e donos de negócios a prosperar através de um novo tipo de ecossistema de apoio. Inspirada na forma como a natureza funciona, onde cada elemento tem um papel em sustentar o crescimento, eu projeto soluções de inteligência intuitiva através de agentes de IA personalizados que se tornam uma extensão da sua equipe. Esses agentes ajudam a gerenciar contratos, relatórios, agendas, organização de CRM e outras responsabilidades operacionais, criando mais espaço para que líderes se concentrem em visão, relacionamentos e crescimento.</p>
+          <p>A BotanIA representa a conexão entre natureza e tecnologia. O nome combina botânica, minha paixão pessoal e o estudo de como os sistemas vivos crescem, com IA, a forma como dizemos inteligência artificial em português, honrando minhas raízes brasileiras. Assim como um ecossistema próspero, acredito que a tecnologia funciona melhor quando cada elemento inteligente apoia o crescimento do todo.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-divider"><span class="seg"></span><span class="dot"></span><span class="seg right"></span></div>
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">O que os clientes dizem</span>
+        <h2>Provas, não promessas</h2>
+      </div>
+      <div class="testimonials">
+        <div class="testimony">
+          <svg viewBox="0 0 24 18" fill="none"><path d="M0 18V9.5C0 4.3 3.6.7 8.5 0v3.3C5.7 4 4 6.2 4 9h4v9H0zM13.5 18V9.5c0-5.2 3.6-8.8 8.5-9.5v3.3c-2.8.7-4.5 2.9-4.5 5.7h4v9h-8.5z" fill="currentColor"/></svg>
+          <p>She is consistently proactive, often staying several steps ahead to ensure everything runs smoothly without the need for prompting. Her attention to detail and thoroughness make her incredibly reliable. I always know the work is in good hands.</p>
+        </div>
+        <div class="testimony">
+          <svg viewBox="0 0 24 18" fill="none"><path d="M0 18V9.5C0 4.3 3.6.7 8.5 0v3.3C5.7 4 4 6.2 4 9h4v9H0zM13.5 18V9.5c0-5.2 3.6-8.8 8.5-9.5v3.3c-2.8.7-4.5 2.9-4.5 5.7h4v9h-8.5z" fill="currentColor"/></svg>
+          <p>She handled her first major due date for me and handled it very well. Very appreciative of all she does for me, and this is an especially critical function of someone in her position.</p>
+        </div>
+        <div class="testimony">
+          <svg viewBox="0 0 24 18" fill="none"><path d="M0 18V9.5C0 4.3 3.6.7 8.5 0v3.3C5.7 4 4 6.2 4 9h4v9H0zM13.5 18V9.5c0-5.2 3.6-8.8 8.5-9.5v3.3c-2.8.7-4.5 2.9-4.5 5.7h4v9h-8.5z" fill="currentColor"/></svg>
+          <p>What truly sets her apart is her drive to improve processes and create efficiencies that make things easier for everyone involved.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final-cta" id="contact">
+    <div class="glow" style="width:240px; height:240px; background:var(--teal); opacity:.07; bottom:-120px; right:-80px; animation:pulseGlow 8s ease-in-out infinite;"></div>
+    <div class="glow" style="width:180px; height:180px; background:var(--sage-mid); opacity:.06; top:-80px; left:-60px;"></div>
+    <div class="section-divider"><span class="seg"></span><span class="dot"></span><span class="seg right"></span></div>
+    <div class="hero-mark" style="margin:0 auto 28px; color:var(--sage); position:relative; z-index:1;">
+      <svg viewBox="0 0 40 46" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <circle cx="20" cy="4" r="1.8" fill="currentColor"/>
+        <line x1="20" y1="6" x2="20" y2="34" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2>Pronto para ter o seu tempo de volta?</h2>
+    <p>Vamos conversar sobre o que realmente está comandando o seu dia, e o que não deveria.</p>
+    <div class="actions-wrap">
+      <a href="https://calendar.app.google/EzstrZ1At13f3HJfA" target="_blank" rel="noopener noreferrer" class="cta-btn">Agendar uma consulta</a>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wordmark">BotanIA</div>
+  <p>Inteligência Intuitiva para Negócios Modernos &nbsp;&middot;&nbsp; <a href="mailto:abotania.co@gmail.com">abotania.co@gmail.com</a></p>
+</footer>
+
+<script>
+const vine = document.getElementById('vine');
+const vineFill = document.getElementById('vineFill');
+const vineSeed = document.getElementById('vineSeed');
+
+function updateVine(){
+  const doc = document.documentElement;
+  const scrollTop = doc.scrollTop || document.body.scrollTop;
+  const scrollHeight = (doc.scrollHeight || document.body.scrollHeight) - doc.clientHeight;
+  const pct = scrollHeight > 0 ? Math.min(100, (scrollTop / scrollHeight) * 100) : 0;
+  vineFill.style.height = pct + '%';
+  if (vineSeed) vineSeed.style.bottom = pct + '%';
+}
+document.addEventListener('scroll', updateVine, { passive: true });
+window.addEventListener('resize', updateVine);
+updateVine();
+
+const revealTargets = document.querySelectorAll('.stage, .testimony, .service-card, .capability, .problem-list li, .section-head, .problem-grid > div, .about-grid > *, .final-cta h2, .final-cta p, .final-cta .actions-wrap');
+revealTargets.forEach(el => {
+  el.style.opacity = 0;
+  el.style.transform = 'translateY(14px)';
+  el.style.transition = 'opacity .7s ease, transform .7s ease';
+});
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.opacity = 1;
+      entry.target.style.transform = 'translateY(0)';
+      io.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+revealTargets.forEach(el => io.observe(el));
+
+const dividers = document.querySelectorAll('.section-divider');
+const dividerIo = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('in-view');
+      dividerIo.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.4 });
+dividers.forEach(el => dividerIo.observe(el));
+</script>
+
+</body>
+</html>
