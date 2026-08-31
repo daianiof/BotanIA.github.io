@@ -1,0 +1,15 @@
+# Retired URLs. The files are deleted from the repo rather than hidden,
+# so these keep any existing links from dead-ending.
+
+# The Consulting branch was retired, and the Systems and How It Works
+# pages have since merged into the homepage.
+/consulting        /   301
+/pt-consulting     /   301
+/systems           /   301
+/how-it-works      /   301
+
+# Portuguese pages are being rebuilt for the new positioning. Temporary
+# (302) so the original URLs can be restored when the PT set ships.
+/pt                /   302
+/pt-about          /   302
+/pt-systems        /   302

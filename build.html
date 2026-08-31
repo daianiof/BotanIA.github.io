@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'%3E%3Ccircle cx='20' cy='4' r='2.4' fill='%232F4F35'/%3E%3Cline x1='20' y1='7' x2='20' y2='34' stroke='%232F4F35' stroke-width='2'/%3E%3Cpath d='M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z' stroke='%232F4F35' stroke-width='2'/%3E%3Cpath d='M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z' stroke='%232F4F35' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300..600&display=swap" rel="stylesheet">
+<script>document.documentElement.className+=' js';</script>
+<link rel="stylesheet" href="botania.css?v=34">
+<meta name="description" content="Tell BOTANIA how the work moves in your business and where the manual work sits. We read every message and reply personally.">
+<title>Build Your System | BOTANIA</title>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html" aria-label="BOTANIA, home">
+      <svg viewBox="7 2 26 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="20" cy="4" r="1.6" fill="currentColor"/>
+        <line x1="20" y1="6" x2="20" y2="30" stroke="currentColor" stroke-width="1.1"/>
+        <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+      </svg>
+      <span class="wordmark">BOTANIA</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="primaryNav" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="links" id="primaryNav" aria-label="Primary">
+      <a class="textlink" href="index.html">Home</a>
+      <a class="textlink" href="about.html">About</a>
+      <a class="btn btn-solid btn-sm" href="build.html" aria-current="page">Build Your System</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="page-hero">
+    <div class="wrap">
+      <span class="kicker reveal">Build your system</span>
+      <h1 class="reveal">Tell us about your business</h1>
+      <p class="lede reveal">A few questions so the first conversation starts somewhere useful. Plain language is exactly right, and there is nothing to prepare.</p>
+    </div>
+  </section>
+
+  <section id="intake" style="padding-top:2.5rem;">
+    <div class="wrap build-grid">
+      <div class="reveal">
+        <form name="build-your-system" method="POST" data-netlify="true" netlify-honeypot="company-website" action="thanks.html">
+          <input type="hidden" name="form-name" value="build-your-system">
+          <p style="display:none;">
+            <label>Leave this empty: <input name="company-website"></label>
+          </p>
+
+          <div class="form-field">
+            <label for="name">Your name</label>
+            <input id="name" name="name" type="text" autocomplete="name" required>
+          </div>
+          <div class="form-field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <div class="form-field">
+            <label for="business">What does your business do?</label>
+            <span class="hint">One or two sentences is plenty.</span>
+            <input id="business" name="business" type="text" required>
+          </div>
+          <div class="form-field">
+            <label for="size">Roughly how many people?</label>
+            <select id="size" name="size">
+              <option value="">Select&hellip;</option>
+              <option>Just me</option>
+              <option>2 to 10</option>
+              <option>11 to 50</option>
+              <option>51 to 200</option>
+              <option>200+</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="manual">Where does the manual work sit?</label>
+            <span class="hint">For example: following up with people, entering the same information twice, chasing documents, rebuilding the same report each month, or coordinating schedules.</span>
+            <textarea id="manual" name="manual" required></textarea>
+          </div>
+          <div class="form-field">
+            <label for="tools">Which applications do you run?</label>
+            <span class="hint">CRM, calendar, accounting, document storage, e-signature, forms, whatever comes to mind.</span>
+            <input id="tools" name="tools" type="text">
+          </div>
+
+          <button type="submit" class="btn btn-solid">Send</button>
+          <p class="form-note">We read every one of these and reply personally. No sequence, no newsletter.</p>
+        </form>
+      </div>
+
+      <aside class="build-aside reveal">
+        <h3>Prefer to just talk?</h3>
+        <p>Book a call directly. Thirty minutes, no preparation needed.</p>
+        <a href="https://calendar.app.google/EzstrZ1At13f3HJfA" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Book a call</a>
+
+        <h3 style="margin-top:2.25rem;">What happens next</h3>
+        <ul>
+          <li>We read what you sent and come back with questions, usually within two working days.</li>
+          <li>A conversation about how the work moves today.</li>
+          <li>If a system would help, you get a map of what it would do before anything is built.</li>
+          <li>If it would not, we will tell you that instead.</li>
+        </ul>
+
+        <p style="margin:0;">Or email <a class="textlink-inline" href="mailto:abotania.co@gmail.com">abotania.co@gmail.com</a></p>
+      </aside>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-brandline">
+        <span class="wordmark">BOTANIA</span>
+        <svg viewBox="7 2 26 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="20" cy="4" r="1.6" fill="currentColor"/>
+          <line x1="20" y1="6" x2="20" y2="30" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="meta">Intuitive Intelligence for Modern Business</span>
+    </div>
+    <nav class="footer-nav" aria-label="Footer">
+      <a href="index.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="build.html">Build Your System</a>
+      <a class="mail" href="mailto:abotania.co@gmail.com">abotania.co@gmail.com</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="botania.js?v=34"></script>
+</body>
+</html>

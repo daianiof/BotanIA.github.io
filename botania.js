@@ -1,718 +1,1251 @@
+/* ============================================================
+   BOTANIA v4
+
+   Two rendering layers, chosen deliberately:
+
+   1. SVG, the labelled system. Real selectable text, focusable
+      nodes, crisp at any pixel density, ~40 elements per canvas.
+   2. Canvas, the ambient venation substrate behind the hero,
+      where there are thousands of strokes and no text. Ported
+      from the previous BOTANIA build (space colonisation after
+      Runions et al.), because it is the visual bridge between
+      the old identity and this one.
+
+   No animation library. Growth is stroke-dashoffset transitions
+   driven by a cancellable timeline.
+   ============================================================ */
 (function(){
 'use strict';
 
-const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var NS = 'http://www.w3.org/2000/svg';
+var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var EASE = 'cubic-bezier(.16,1,.3,1)';
+var NODE_H = 40;
 
-// One seed per visit, fixed for the life of the page. The copy claims no
-// two vein patterns are alike, so no two visitors get the same network.
-// Holding it steady across resizes keeps the pattern from reshuffling
-// under the reader mid-scroll.
-const SESSION_SEED = (Math.random() * 2147483647) | 0;
+/* Semantic palette. Each hue has exactly one job. */
+var EDGE = { trigger:'#2F4F35', std:'#7D9469', ai:'#46585E', human:'#8F4826', output:'#7D9469' };
+var GLYPH= { trigger:'#FAF8F1', std:'#2F4F35', ai:'#46585E', human:'#8F4826', output:'#2F4F35' };
+var SAGE = '#7D9469', PULSE = '#2F6B5E';
+
+function el(name, attrs){
+  var n = document.createElementNS(NS, name);
+  if(attrs) for(var k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+
+/* The BOTANIA corner at node scale. The page uses 2px/30px on cards
+   and buttons; a node is the same silhouette at roughly 1/8 the size,
+   alternating direction so a column never reads as stacked boxes. */
+function nodePath(x, y, w, h, flip){
+  var S = 3, B = 15;
+  var tl = flip ? B : S, tr = flip ? S : B, br = flip ? B : S, bl = flip ? S : B;
+  return 'M' + (x + tl) + ' ' + y +
+    'H' + (x + w - tr) + 'A' + tr + ' ' + tr + ' 0 0 1 ' + (x + w) + ' ' + (y + tr) +
+    'V' + (y + h - br) + 'A' + br + ' ' + br + ' 0 0 1 ' + (x + w - br) + ' ' + (y + h) +
+    'H' + (x + bl) + 'A' + bl + ' ' + bl + ' 0 0 1 ' + x + ' ' + (y + h - bl) +
+    'V' + (y + tl) + 'A' + tl + ' ' + tl + ' 0 0 1 ' + (x + tl) + ' ' + y + 'Z';
+}
+
+/* Cubic Bézier with handles along the flow axis. Branches always
+   leave a shared stem first (see hubs below). That shared stem is
+   what makes the network read as grown rather than drawn. */
+function linkPath(a, b, vertical){
+  var dx = b[0] - a[0], dy = b[1] - a[1];
+  var axial = Math.abs(vertical ? dy : dx);
+  var cross = Math.abs(vertical ? dx : dy);
+  /* Handle length grows with the run and, more gently, with the offset,
+     then is capped so it can never reach past the target, which is what
+     produces the little hook where a branch meets a node. */
+  var c = Math.max(30, axial * 0.55 + cross * 0.18);
+  c = Math.min(c, axial * 0.9 + 40);
+  if(vertical) return 'M' + a[0] + ' ' + a[1] + 'C' + a[0] + ' ' + (a[1] + c) + ',' + b[0] + ' ' + (b[1] - c) + ',' + b[0] + ' ' + b[1];
+  return 'M' + a[0] + ' ' + a[1] + 'C' + (a[0] + c) + ' ' + a[1] + ',' + (b[0] - c) + ' ' + b[1] + ',' + b[0] + ' ' + b[1];
+}
+
+/* 14×14 line glyphs. The trigger glyph is the BOTANIA mark itself. */
+var ICONS = {
+  seed:  ['M7 12.4V3.4','M7 5.6C4.6 5.6 3 7.2 2 8.6C4.4 9 6 8 7 5.6Z','M7 5.6C9.4 5.6 11 7.2 12 8.6C9.6 9 8 8 7 5.6Z'],
+  ai:    ['M1.6 3.4L5.6 6.6','M1.6 10.6L5.6 7.4','M12.4 7H9.4','M7.5 5.4a1.7 1.7 0 1 1 0 3.4a1.7 1.7 0 1 1 0-3.4Z'],
+  db:    ['M2 3.2h10v7.6H2Z','M2 5.9h10','M2 8.3h10'],
+  cal:   ['M2 3.4h10v8.4H2Z','M2 6h10','M4.6 2v2.6','M9.4 2v2.6'],
+  mail:  ['M2 3.6h10v7.2H2Z','M2 3.6l5 3.8l5-3.8'],
+  chart: ['M1.4 12h11.2','M3.4 12V7.6','M7 12V3.6','M10.6 12V8.8'],
+  human: ['M7 2.6a2.1 2.1 0 1 1 0 4.2a2.1 2.1 0 1 1 0-4.2Z','M2.7 12.2c0-2.5 1.9-4 4.3-4s4.3 1.5 4.3 4'],
+  users: ['M5.2 3a1.9 1.9 0 1 1 0 3.8a1.9 1.9 0 1 1 0-3.8Z','M1.4 11.6c0-2.2 1.7-3.5 3.8-3.5s3.8 1.3 3.8 3.5','M9.6 3.6a1.7 1.7 0 1 1 0 3.4','M10.2 8.3c1.5.3 2.4 1.5 2.4 3.3'],
+  doc:   ['M3.2 1.9h4.6l3 3v7.2H3.2Z','M7.8 1.9v3h3','M5.2 8.2h3.6','M5.2 10.2h3.6'],
+  card:  ['M1.5 3.4h11v7.2h-11Z','M1.5 5.9h11','M3.6 8.6h2.6'],
+  task:  ['M2 2.6h10v8.8H2Z','M4.4 7.1l1.9 1.9l3.4-3.6'],
+  clock: ['M7 1.9a5.1 5.1 0 1 1 0 10.2a5.1 5.1 0 1 1 0-10.2Z','M7 4.3V7l2 1.4']
+};
 
 /* ============================================================
-   1. VENATION NETWORK
-   Space colonization (Runions et al.), open-venation variant.
-   Chosen over recursive branching because recursion yields
-   self-similar shapes that read as fractal decoration. Space
-   colonization produces a dominant midrib, irregular secondary
-   spacing, and capillaries that fill interstitial gaps.
+   SystemCanvas
+   Builds one labelled system from a spec, then grows it.
+   ============================================================ */
+function SystemCanvas(svg, spec){
+  var vertical = !!spec.vertical;
+  var byId = {}, ports = {}, nodeEls = {}, linkEls = {}, hubEls = {};
+  var timers = [], chainTimer = null, grown = false;
+
+  svg.setAttribute('viewBox', '0 0 ' + spec.viewBox[0] + ' ' + spec.viewBox[1]);
+  svg.setAttribute('width', spec.viewBox[0]);
+  svg.setAttribute('height', spec.viewBox[1]);
+  svg.setAttribute('role', 'img');
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  spec.nodes.forEach(function(n){ byId[n.id] = n; });
+  (spec.hubs || []).forEach(function(h){ byId[h.id] = h; });
+
+  function outPort(id){
+    var n = byId[id];
+    if(n.w === undefined) return [n.x, n.y];                       // hub
+    return vertical ? [n.x + n.w / 2, n.cy + NODE_H / 2] : [n.x + n.w, n.cy];
+  }
+  function inPort(id){
+    var n = byId[id];
+    if(n.w === undefined) return [n.x, n.y];
+    return vertical ? [n.x + n.w / 2, n.cy - NODE_H / 2] : [n.x, n.cy];
+  }
+
+  var gLink = el('g', {'class':'links'}),  gPulse = el('g', {'class':'pulses'}),
+      gPort = el('g', {'class':'ports'}),  gNode  = el('g', {'class':'nodes'});
+  svg.appendChild(gLink); svg.appendChild(gPulse); svg.appendChild(gPort); svg.appendChild(gNode);
+
+  /* ---- links ---- */
+  spec.links.forEach(function(l, i){
+    l.id = l.id || ('l' + i);
+    var a = outPort(l.from), b = inPort(l.to);
+    var p = el('path', { d: linkPath(a, b, vertical), fill:'none', stroke:SAGE,
+                         'stroke-linecap':'round', 'stroke-width': l.w || 1.3 });
+    p.dataset.w = l.w || 1.3;
+    gLink.appendChild(p);
+    linkEls[l.id] = p;
+    var pt = el('circle', { cx:b[0], cy:b[1], r:2.6, fill:SAGE });
+    pt.style.opacity = 0; gPort.appendChild(pt); ports[l.id] = pt;
+  });
+
+  /* ---- hubs: the branch point where a stem divides ---- */
+  (spec.hubs || []).forEach(function(h){
+    var c = el('circle', { cx:h.x, cy:h.y, r:3.4, fill:SAGE });
+    c.style.opacity = 0; gPort.appendChild(c); hubEls[h.id] = c;
+  });
+
+  /* ---- nodes ---- */
+  spec.nodes.forEach(function(n, i){
+    var y = n.cy - NODE_H / 2, flip = (i % 2) === 1;
+    var g = el('g', { 'class':'sysnode', tabindex:'0', role:'group',
+                      'aria-label': n.label + (n.role ? '. ' + n.role : '') });
+    g.dataset.role = n.role || '';
+    g.dataset.label = n.label;
+
+    g.appendChild(el('path', { 'class':'n-halo', d: nodePath(n.x - 5, y - 5, n.w + 10, NODE_H + 10, flip),
+                               fill:'none', stroke: EDGE[n.kind], 'stroke-width':1, opacity:'.28' }));
+    if(n.kind !== 'trigger'){
+      g.appendChild(el('path', { d: nodePath(n.x, y + 2, n.w, NODE_H, flip),
+                                 fill:'rgba(31,25,19,.055)', stroke:'none' }));
+    }
+    g.appendChild(el('path', { 'class':'n-body', d: nodePath(n.x, y, n.w, NODE_H, flip),
+                               fill: n.kind === 'trigger' ? '#2F4F35' : '#FAF8F1',
+                               stroke: EDGE[n.kind], 'stroke-width':1 }));
+    /* human checkpoints carry a second, warmer edge on the entry side */
+    if(n.kind === 'human'){
+      g.appendChild(el('path', { d:'M' + (n.x + 1) + ' ' + (y + 11) + 'V' + (y + NODE_H - 11),
+                                 stroke:'#8F4826', 'stroke-width':2, 'stroke-linecap':'round' }));
+    }
+    var ic = el('g', { 'class':'n-icon', transform:'translate(' + (n.x + 12) + ',' + (n.cy - 7) + ')',
+                       stroke: GLYPH[n.kind], 'stroke-width':1.2, fill:'none',
+                       'stroke-linecap':'round', 'stroke-linejoin':'round' });
+    (ICONS[n.icon] || ICONS.db).forEach(function(d){ ic.appendChild(el('path', { d:d })); });
+    g.appendChild(ic);
+
+    var t = el('text', { 'class':'n-label', x: n.x + 34, y: n.cy, 'dominant-baseline':'central',
+                         'font-family':'Archivo, sans-serif', 'font-size':13,
+                         'font-variation-settings':"'wdth' 100,'wght' 550",
+                         fill: n.kind === 'trigger' ? '#FAF8F1' : '#1F1913' });
+    t.textContent = n.label;
+    g.appendChild(t);
+
+    g.appendChild(el('circle', { 'class':'n-status', cx:n.x + n.w - 12, cy:n.cy - 12, r:2.4,
+                                 fill: n.kind === 'trigger' ? 'rgba(250,248,241,.55)' : 'rgba(125,148,105,.6)' }));
+    gNode.appendChild(g);
+    nodeEls[n.id] = g;
+  });
+
+  /* ---- growth order, derived rather than authored ----
+     Sources are the nodes nothing points at. Deriving them from the graph
+     rather than from the trigger styling matters: the closing canvas
+     converges several branches INTO a BOTANIA node, so the trigger-styled
+     node there is the destination, not the origin. */
+  var pointedAt = {};
+  spec.links.forEach(function(l){ pointedAt[l.to] = 1; });
+  var roots = spec.nodes.filter(function(n){ return !pointedAt[n.id]; }).map(function(n){ return n.id; });
+  if(!roots.length) roots = [spec.nodes[0].id];
+
+  function buildSequence(){
+    var seen = {}, queue = roots.slice(), steps = [];
+    roots.forEach(function(id){ seen[id] = 1; steps.push({ t:'node', id:id }); });
+    while(queue.length){
+      var cur = queue.shift();
+      spec.links.forEach(function(l){
+        if(l.from !== cur) return;
+        steps.push({ t:'link', id:l.id });
+        if(!seen[l.to]){
+          seen[l.to] = 1;
+          steps.push({ t: hubEls[l.to] ? 'hub' : 'node', id:l.to });
+          queue.push(l.to);
+        }
+      });
+    }
+    return steps;
+  }
+  var SEQ = buildSequence();
+
+  /* ---- root-to-leaf chains, for pulses ---- */
+  function buildChains(){
+    var out = [];
+    function walk(id, path, depth){
+      if(depth > 24) return;                       // cycle guard
+      var next = spec.links.filter(function(l){ return l.from === id; });
+      if(!next.length){ if(path.length) out.push(path.slice()); return; }
+      next.forEach(function(l){ path.push(l.id); walk(l.to, path, depth + 1); path.pop(); });
+    }
+    roots.forEach(function(id){ walk(id, [], 0); });
+    return out;
+  }
+  var CHAINS = buildChains();
+
+  function clearTimers(){
+    timers.forEach(clearTimeout); timers = [];
+    if(chainTimer){ clearTimeout(chainTimer); chainTimer = null; }
+    while(gPulse.firstChild) gPulse.removeChild(gPulse.firstChild);
+  }
+  function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
+
+  function seed(){
+    clearTimers(); grown = false;
+    spec.links.forEach(function(l){
+      var p = linkEls[l.id], len = p.getTotalLength();
+      p.style.transition = 'none';
+      p.style.strokeDasharray = len;
+      p.style.strokeDashoffset = len;
+      p.style.strokeWidth = 0.5;
+      ports[l.id].style.transition = 'none';
+      ports[l.id].style.opacity = 0;
+    });
+    Object.keys(hubEls).forEach(function(k){
+      hubEls[k].style.transition = 'none'; hubEls[k].style.opacity = 0;
+    });
+    spec.nodes.forEach(function(n){
+      var g = nodeEls[n.id];
+      g.style.transition = 'none';
+      g.style.opacity = 0;
+      g.style.transform = vertical ? 'translateY(6px)' : 'translateY(4px)';
+    });
+    svg.getBoundingClientRect();
+  }
+
+  /* State 1 of the homepage transformation: the functions exist,
+     nothing connects them. */
+  function seedNodesOnly(){
+    seed();
+    svg.classList.add('state-manual');
+    spec.nodes.forEach(function(n, i){
+      at(80 + i * 70, function(){
+        var g = nodeEls[n.id];
+        g.style.transition = 'opacity 340ms ' + EASE + ', transform 340ms ' + EASE;
+        g.style.opacity = 1; g.style.transform = 'none';
+      });
+    });
+  }
+
+  function settle(){
+    clearTimers(); grown = true;
+    svg.classList.remove('state-manual');
+    spec.links.forEach(function(l){
+      var p = linkEls[l.id];
+      p.style.transition = 'none';
+      p.style.strokeDasharray = 'none';
+      p.style.strokeDashoffset = 0;
+      p.style.strokeWidth = l.w || 1.3;
+      ports[l.id].style.transition = 'none';
+      ports[l.id].style.opacity = 1;
+    });
+    Object.keys(hubEls).forEach(function(k){ hubEls[k].style.opacity = 1; });
+    spec.nodes.forEach(function(n){
+      var g = nodeEls[n.id];
+      g.style.transition = 'none'; g.style.opacity = 1; g.style.transform = 'none';
+    });
+  }
+
+  /* Reduced motion still gets the "information travels here" idea,
+     as a fixed segment on the trunk rather than a moving one. */
+  function staticSignal(){
+    if(!CHAINS.length) return;
+    var chain = CHAINS[0];
+    chain.slice(0, 3).forEach(function(id, i){
+      var src = linkEls[id], len = src.getTotalLength();
+      var p = el('path', { d: src.getAttribute('d'), fill:'none', stroke:PULSE,
+                           'stroke-linecap':'round',
+                           'stroke-width': Math.max(1.1, src.dataset.w * 0.85) });
+      p.setAttribute('stroke-dasharray', Math.min(44, len) + ' ' + (len + 80));
+      p.setAttribute('stroke-dashoffset', -len * 0.35);
+      p.style.opacity = 0.75 - i * 0.16;
+      gPulse.appendChild(p);
+    });
+  }
+
+  function growLink(id, dur){
+    var p = linkEls[id];
+    p.style.transition = 'stroke-dashoffset ' + dur + 'ms ' + EASE +
+                         ', stroke-width 220ms ease ' + Math.max(0, dur - 140) + 'ms';
+    p.style.strokeDashoffset = 0;
+    p.style.strokeWidth = p.dataset.w;
+    at(Math.max(0, dur - 200), function(){
+      ports[id].style.transition = 'opacity 260ms ease';
+      ports[id].style.opacity = 1;
+    });
+  }
+  function activate(id){
+    var g = nodeEls[id];
+    g.style.transition = 'opacity 300ms ' + EASE + ', transform 300ms ' + EASE;
+    g.style.opacity = 1; g.style.transform = 'none';
+  }
+
+  function firePulse(id){
+    var src = linkEls[id];
+    if(!src) return 0;
+    var len = src.getTotalLength();
+    var p = el('path', { d: src.getAttribute('d'), fill:'none', stroke:PULSE,
+                         'stroke-linecap':'round',
+                         'stroke-width': Math.max(1.1, src.dataset.w * 0.85) });
+    p.style.strokeDasharray = '30 ' + (len + 60);
+    p.style.strokeDashoffset = 30;
+    p.style.opacity = 0.82;
+    gPulse.appendChild(p);
+    var dur = Math.max(320, len / 190 * 1000);
+    requestAnimationFrame(function(){
+      p.style.transition = 'stroke-dashoffset ' + dur + 'ms linear';
+      p.style.strokeDashoffset = -len;
+    });
+    at(dur + 160, function(){ if(p.parentNode) p.parentNode.removeChild(p); });
+    return dur;
+  }
+
+  var chainIdx = 0;
+  function runChains(){
+    if(!CHAINS.length || REDUCED) return;
+    var chain = CHAINS[chainIdx % CHAINS.length]; chainIdx++;
+    var acc = 0;
+    chain.forEach(function(id){
+      at(acc, function(){ firePulse(id); });
+      var l = linkEls[id];
+      acc += Math.max(320, l.getTotalLength() / 190 * 1000) * 0.82;
+      /* a human checkpoint holds the signal for a beat: a decision happened */
+      var link = spec.links.filter(function(x){ return x.id === id; })[0];
+      if(link && byId[link.to] && byId[link.to].kind === 'human') acc += 420;
+    });
+    chainTimer = setTimeout(runChains, acc + 1500);
+    timers.push(chainTimer);
+  }
+
+  var NODE_MS = 300, LINK_MS = spec.linkMs || 640, GAP = 80;
+  function grow(opts){
+    opts = opts || {};
+    seed();
+    var t = opts.delay || 120;
+    SEQ.forEach(function(s){
+      if(s.t === 'link'){
+        at(t, function(){ growLink(s.id, LINK_MS); });
+        t += LINK_MS + 40;
+      } else if(s.t === 'hub'){
+        at(t, function(){
+          hubEls[s.id].style.transition = 'opacity 240ms ease';
+          hubEls[s.id].style.opacity = 1;
+        });
+        t += 180;
+      } else {
+        at(t, (function(id){ return function(){ activate(id); }; })(s.id));
+        t += NODE_MS + GAP;
+      }
+    });
+    if(opts.pulse !== false) at(t + 600, runChains);
+    return t;
+  }
+
+  /* Grow the connections onto nodes that are already standing.
+     state 2 of the homepage transformation. */
+  function connect(){
+    clearTimers();
+    svg.classList.remove('state-manual');
+    var t = 60;
+    SEQ.forEach(function(s){
+      if(s.t === 'link'){ at(t, function(){ growLink(s.id, LINK_MS); }); t += LINK_MS * 0.55; }
+      else if(s.t === 'hub'){
+        at(t, function(){ hubEls[s.id].style.transition = 'opacity 240ms ease'; hubEls[s.id].style.opacity = 1; });
+      }
+    });
+    return t;
+  }
+
+  return {
+    svg: svg,
+    grow: grow,
+    connect: connect,
+    seed: seed,
+    seedNodesOnly: seedNodesOnly,
+    settle: settle,
+    staticSignal: staticSignal,
+    flow: runChains,
+    stop: clearTimers,
+    isGrown: function(){ return grown; },
+    nodes: nodeEls
+  };
+}
+
+/* ============================================================
+   node role tooltips. Hovering a node reveals what it does
+   ============================================================ */
+function initNodeRoles(plate){
+  var tip = document.createElement('div');
+  tip.className = 'node-role';
+  tip.setAttribute('role', 'status');
+  plate.appendChild(tip);
+
+  function show(g){
+    var role = g.dataset.role;
+    if(!role) return;
+    tip.textContent = role;
+    tip.classList.add('show');
+    var pr = plate.getBoundingClientRect();
+    var gr = g.getBoundingClientRect();
+    var tw = tip.offsetWidth, th = tip.offsetHeight;
+    var left = gr.left - pr.left + gr.width / 2 - tw / 2;
+    left = Math.max(8, Math.min(left, pr.width - tw - 8));
+    var top = gr.top - pr.top - th - 10;
+    if(top < 6) top = gr.top - pr.top + gr.height + 10;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+  function hide(){ tip.classList.remove('show'); }
+
+  plate.addEventListener('pointerover', function(e){
+    var g = e.target.closest && e.target.closest('.sysnode');
+    if(g) show(g); else hide();
+  });
+  plate.addEventListener('pointerleave', hide);
+  plate.addEventListener('focusin', function(e){
+    var g = e.target.closest && e.target.closest('.sysnode');
+    if(g) show(g);
+  });
+  plate.addEventListener('focusout', hide);
+}
+
+/* ============================================================
+   start a canvas when it enters the viewport, pause when hidden
+   ============================================================ */
+function whenVisible(node, fn){
+  if(!('IntersectionObserver' in window)){ fn(); return; }
+  var vh = window.innerHeight || document.documentElement.clientHeight;
+  if(node.getBoundingClientRect().top < vh){ fn(); return; }
+  var done = false;
+  var io = new IntersectionObserver(function(entries){
+    if(entries[0].isIntersecting && !done){ done = true; io.disconnect(); fn(); }
+  }, { threshold: 0.2 });
+  io.observe(node);
+}
+
+/* ============================================================
+   SYSTEM SPECS
+   Node labels use the business owner's vocabulary. Never
+   "webhook", "trigger", "payload", "endpoint".
    ============================================================ */
 
-// --- deterministic RNG so a resize does not reshuffle the whole field
+var ROLES = {
+  lead:   'A form submission, an email or a referral. Whatever starts the process.',
+  qual:   'Reads the inquiry, checks it against your criteria, and routes it. Anything unclear goes to a person.',
+  crm:    'The record is created and kept current without anyone typing it in twice.',
+  sched:  'Offers real availability and books the time automatically.',
+  follow: 'Writes a reply in your voice, using what the system already knows about this lead.',
+  pipe:   'Stage, value and next action stay accurate because the system updates them.',
+  review: 'You approve anything above an amount you set. The system waits, then carries on.'
+};
+
+var SPECS = {};
+
+SPECS.heroDesktop = {
+  viewBox:[1000,400],
+  nodes:[
+    {id:'lead',  label:'New Lead',        x:40,  cy:210, w:110, kind:'trigger', icon:'seed',  role:ROLES.lead},
+    {id:'qual',  label:'AI Qualification',x:222, cy:210, w:168, kind:'ai',      icon:'ai',    role:ROLES.qual},
+    {id:'crm',   label:'CRM',             x:460, cy:210, w:88,  kind:'std',     icon:'db',    role:ROLES.crm},
+    {id:'sched', label:'Scheduling',      x:664, cy:90,  w:124, kind:'std',     icon:'cal',   role:ROLES.sched},
+    {id:'follow',label:'Follow-up',       x:664, cy:210, w:118, kind:'ai',      icon:'mail',  role:ROLES.follow},
+    {id:'pipe',  label:'Sales Pipeline',  x:664, cy:330, w:142, kind:'std',     icon:'chart', role:ROLES.pipe},
+    {id:'review',label:'Owner Review',    x:846, cy:330, w:134, kind:'human',   icon:'human', role:ROLES.review}
+  ],
+  hubs:[{id:'h1', x:600, y:210}],
+  links:[
+    {from:'lead',to:'qual',w:2.2},{from:'qual',to:'crm',w:2.1},{from:'crm',to:'h1',w:2.0},
+    {from:'h1',to:'follow',w:1.2},{from:'h1',to:'sched',w:1.15},{from:'h1',to:'pipe',w:1.5},
+    {from:'pipe',to:'review',w:1.05}
+  ]
+};
+
+/* Not the desktop layout scaled down. A vertical trunk, five nodes, and
+   the branch resolved as a symmetric fan so no connection ever has to
+   route underneath a node. */
+SPECS.heroMobile = {
+  viewBox:[360,520], vertical:true, linkMs:520,
+  nodes:[
+    {id:'lead',  label:'New Lead',        x:30,  cy:44,  w:150, kind:'trigger', icon:'seed',  role:ROLES.lead},
+    {id:'qual',  label:'AI Qualification',x:30,  cy:164, w:180, kind:'ai',      icon:'ai',    role:ROLES.qual},
+    {id:'crm',   label:'CRM',             x:30,  cy:284, w:120, kind:'std',     icon:'db',    role:ROLES.crm},
+    {id:'follow',label:'Follow-up',       x:14,  cy:470, w:150, kind:'ai',      icon:'mail',  role:ROLES.follow},
+    {id:'sched', label:'Scheduling',      x:196, cy:470, w:150, kind:'std',     icon:'cal',   role:ROLES.sched}
+  ],
+  hubs:[{id:'h1', x:90, y:362}],
+  links:[
+    {from:'lead',to:'qual',w:2.2},{from:'qual',to:'crm',w:2.1},{from:'crm',to:'h1',w:2.0},
+    {from:'h1',to:'follow',w:1.4},{from:'h1',to:'sched',w:1.2}
+  ]
+};
+
+SPECS.scenarioLead = {
+  viewBox:[1200,420],
+  nodes:[
+    {id:'lead',  label:'New Lead',             x:40,  cy:210, w:112, kind:'trigger', icon:'seed',  role:ROLES.lead},
+    {id:'qual',  label:'AI Qualification',     x:226, cy:210, w:168, kind:'ai',      icon:'ai',    role:ROLES.qual},
+    {id:'crm',   label:'CRM',                  x:468, cy:210, w:88,  kind:'std',     icon:'db',    role:ROLES.crm},
+    {id:'sched', label:'Scheduling',           x:650, cy:86,  w:124, kind:'std',     icon:'cal',   role:ROLES.sched},
+    {id:'resp',  label:'Personalized Response',x:650, cy:210, w:196, kind:'ai',      icon:'mail',  role:'Drafts a reply that refers to what they actually asked about.'},
+    {id:'pipe',  label:'Sales Pipeline',       x:650, cy:334, w:142, kind:'std',     icon:'chart', role:ROLES.pipe},
+    {id:'follow',label:'Follow-up',            x:888, cy:86,  w:118, kind:'std',     icon:'clock', role:'Chases the ones that go quiet, on a schedule you set once.'},
+    {id:'review',label:'Owner Review',         x:888, cy:334, w:134, kind:'human',   icon:'human', role:ROLES.review}
+  ],
+  hubs:[{id:'h1', x:604, y:210}],
+  links:[
+    {from:'lead',to:'qual',w:2.2},{from:'qual',to:'crm',w:2.15},{from:'crm',to:'h1',w:2.05},
+    {from:'h1',to:'resp',w:1.35},{from:'h1',to:'sched',w:1.3},{from:'h1',to:'pipe',w:1.5},
+    {from:'sched',to:'follow',w:1.05},{from:'pipe',to:'review',w:1.05}
+  ]
+};
+
+SPECS.scenarioClient = {
+  viewBox:[1200,420],
+  nodes:[
+    {id:'client',label:'New Client',    x:30,  cy:210, w:124, kind:'trigger', icon:'seed',  role:'A signed proposal or a closed deal. Onboarding starts itself.'},
+    {id:'intake',label:'Intake',        x:200, cy:210, w:96,  kind:'std',     icon:'task',  role:'One form, asked once, feeding everything after it.'},
+    {id:'docs',  label:'Documents',     x:376, cy:92,  w:126, kind:'std',     icon:'doc',   role:'Asks for what is missing and chases it until it arrives.'},
+    {id:'tasks', label:'Internal Tasks',x:376, cy:328, w:142, kind:'std',     icon:'task',  role:'Assigns the setup work to the right people with the right dates.'},
+    {id:'proc',  label:'AI Processing', x:606, cy:210, w:152, kind:'ai',      icon:'ai',    role:'Reads what came in, pulls out what matters, and flags anything that looks wrong.'},
+    {id:'appr',  label:'Approval',      x:804, cy:210, w:124, kind:'human',   icon:'human', role:'A person confirms before anything reaches the client.'},
+    {id:'upd',   label:'Client Update', x:974, cy:210, w:142, kind:'std',     icon:'mail',  role:'The client hears where things stand without having to ask.'}
+  ],
+  hubs:[{id:'h1', x:334, y:210},{id:'h2', x:566, y:210}],
+  links:[
+    {from:'client',to:'intake',w:2.1},{from:'intake',to:'h1',w:2.0},
+    {from:'h1',to:'docs',w:1.4},{from:'h1',to:'tasks',w:1.4},
+    {from:'docs',to:'h2',w:1.4},{from:'tasks',to:'h2',w:1.4},
+    {from:'h2',to:'proc',w:2.0},{from:'proc',to:'appr',w:1.9},{from:'appr',to:'upd',w:1.8}
+  ]
+};
+
+SPECS.scenarioService = {
+  viewBox:[1200,420],
+  nodes:[
+    {id:'ref',   label:'Referral',        x:20,   cy:210, w:112, kind:'trigger', icon:'seed',  role:'However the work arrives: a partner, a portal or a phone call.'},
+    {id:'intake',label:'Intake',          x:172,  cy:210, w:94,  kind:'std',     icon:'task',  role:'Captured once, organized, and sent to the right place.'},
+    {id:'sched', label:'Scheduling',      x:306,  cy:210, w:124, kind:'std',     icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
+    {id:'svc',   label:'Service',         x:470,  cy:210, w:108, kind:'std',     icon:'users', role:'The work your team is there to do.'},
+    {id:'rep',   label:'AI Report Draft', x:658,  cy:96,  w:158, kind:'ai',      icon:'chart', role:'Builds the report from what the system already recorded.'},
+    {id:'inv',   label:'Invoice',         x:658,  cy:324, w:110, kind:'std',     icon:'card',  role:'Raised from the work the system already recorded.'},
+    {id:'appr',  label:'Approval',        x:856,  cy:96,  w:124, kind:'human',   icon:'human', role:'You review the finding before it goes to the client.'},
+    {id:'deliv', label:'Client Delivery', x:1052, cy:210, w:142, kind:'std',     icon:'mail',  role:'Report and invoice reach the client together, on time.'}
+  ],
+  hubs:[{id:'h1', x:618, y:210},{id:'h2', x:1020, y:210}],
+  links:[
+    {from:'ref',to:'intake',w:2.1},{from:'intake',to:'sched',w:2.05},{from:'sched',to:'svc',w:2.0},
+    {from:'svc',to:'h1',w:1.95},{from:'h1',to:'rep',w:1.4},{from:'h1',to:'inv',w:1.3},
+    {from:'rep',to:'appr',w:1.35},{from:'appr',to:'h2',w:1.3},{from:'inv',to:'h2',w:1.25},
+    {from:'h2',to:'deliv',w:1.9}
+  ]
+};
+
+/* The applications a business already runs. State 1 shows them
+   standing alone; state 2 grows the connections between them. */
+SPECS.transform = {
+  viewBox:[950,340],
+  nodes:[
+    {id:'inbox', label:'Inbox',        x:40,  cy:160, w:110, kind:'std', icon:'mail', role:'Where most of the real information still lives.'},
+    {id:'sheet', label:'Spreadsheets', x:268, cy:56,  w:142, kind:'std', icon:'db',   role:'Where the real numbers often end up.'},
+    {id:'docs',  label:'Documents',    x:268, cy:264, w:136, kind:'std', icon:'doc',  role:'Attached, downloaded, re-uploaded and misfiled.'},
+    {id:'crm',   label:'CRM',          x:560, cy:160, w:88,  kind:'std', icon:'db',   role:'Accurate only as long as someone keeps updating it.'},
+    {id:'cal',   label:'Calendar',     x:770, cy:56,  w:118, kind:'std', icon:'cal',  role:'Booked by hand, one email thread at a time.'},
+    {id:'inv',   label:'Invoicing',    x:770, cy:264, w:118, kind:'std', icon:'card', role:'Raised from memory at the end of the month.'}
+  ],
+  links:[
+    {from:'inbox',to:'sheet',w:1.6},{from:'inbox',to:'docs',w:1.6},
+    {from:'sheet',to:'crm',w:1.5},{from:'docs',to:'crm',w:1.5},
+    {from:'crm',to:'cal',w:1.4},{from:'crm',to:'inv',w:1.4}
+  ]
+};
+
+/* The three ideas the company is built on, converging into BOTANIA.
+   Vertical routing: three across the top, the mark below them. */
+SPECS.cta = {
+  viewBox:[640,240], vertical:true, linkMs:700,
+  nodes:[
+    {id:'growth',    label:'Growth',       x:87,  cy:44,  w:96,  kind:'std',     icon:'chart'},
+    {id:'structure', label:'Structure',    x:239, cy:44,  w:118, kind:'std',     icon:'db'},
+    {id:'intel',     label:'Intelligence', x:413, cy:44,  w:140, kind:'ai',      icon:'ai'},
+    {id:'bot',       label:'BOTANIA',      x:235, cy:196, w:170, kind:'trigger', icon:'seed'}
+  ],
+  hubs:[{id:'h', x:320, y:118}],
+  links:[
+    {from:'growth',to:'h',w:1.3},{from:'structure',to:'h',w:1.3},{from:'intel',to:'h',w:1.3},
+    {from:'h',to:'bot',w:2.3}
+  ]
+};
+
+/* Same three ideas, packed tighter so the labels still read at phone
+   width. Scaling the desktop layout down put them at under 8px. */
+SPECS.ctaMobile = {
+  viewBox:[443,230], vertical:true, linkMs:700,
+  nodes:[
+    {id:'growth',    label:'Growth',       x:24,  cy:44,  w:96,  kind:'std',     icon:'chart'},
+    {id:'structure', label:'Structure',    x:140, cy:44,  w:118, kind:'std',     icon:'db'},
+    {id:'intel',     label:'Intelligence', x:278, cy:44,  w:140, kind:'ai',      icon:'ai'},
+    {id:'bot',       label:'BOTANIA',      x:137, cy:186, w:170, kind:'trigger', icon:'seed'}
+  ],
+  hubs:[{id:'h', x:221, y:112}],
+  links:[
+    {from:'growth',to:'h',w:1.3},{from:'structure',to:'h',w:1.3},{from:'intel',to:'h',w:1.3},
+    {from:'h',to:'bot',w:2.3}
+  ]
+};
+
+/* ============================================================
+   AMBIENT VENATION
+   Ported from the previous BOTANIA build. Space colonisation
+   (Runions et al.), Poisson-disk seeding, Murray's-law taper.
+   Here it is the substrate only. The SVG layer carries the
+   signal, so the pulse and pointer code is not needed.
+   ============================================================ */
 function mulberry32(a){
   return function(){
     a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
-
-// --- spatial hash, keeps nearest-neighbour queries off O(n^2)
-function SpatialGrid(cell, w, h){
+function Grid(cell, w, h){
   this.cell = cell;
   this.cols = Math.max(1, Math.ceil(w / cell));
   this.rows = Math.max(1, Math.ceil(h / cell));
-  this.buckets = new Array(this.cols * this.rows);
+  this.b = new Array(this.cols * this.rows);
 }
-SpatialGrid.prototype.key = function(x, y){
-  const cx = Math.min(this.cols - 1, Math.max(0, (x / this.cell) | 0));
-  const cy = Math.min(this.rows - 1, Math.max(0, (y / this.cell) | 0));
-  return cy * this.cols + cx;
+Grid.prototype.add = function(i, x, y){
+  var cx = Math.min(this.cols - 1, Math.max(0, (x / this.cell) | 0));
+  var cy = Math.min(this.rows - 1, Math.max(0, (y / this.cell) | 0));
+  var k = cy * this.cols + cx;
+  (this.b[k] || (this.b[k] = [])).push(i);
 };
-SpatialGrid.prototype.add = function(idx, x, y){
-  const k = this.key(x, y);
-  (this.buckets[k] || (this.buckets[k] = [])).push(idx);
-};
-SpatialGrid.prototype.near = function(x, y, out){
+Grid.prototype.near = function(x, y, out){
   out.length = 0;
-  const cx = Math.min(this.cols - 1, Math.max(0, (x / this.cell) | 0));
-  const cy = Math.min(this.rows - 1, Math.max(0, (y / this.cell) | 0));
-  for(let yy = Math.max(0, cy - 1); yy <= Math.min(this.rows - 1, cy + 1); yy++){
-    for(let xx = Math.max(0, cx - 1); xx <= Math.min(this.cols - 1, cx + 1); xx++){
-      const b = this.buckets[yy * this.cols + xx];
-      if(b) for(let i = 0; i < b.length; i++) out.push(b[i]);
+  var cx = Math.min(this.cols - 1, Math.max(0, (x / this.cell) | 0));
+  var cy = Math.min(this.rows - 1, Math.max(0, (y / this.cell) | 0));
+  for(var yy = Math.max(0, cy - 1); yy <= Math.min(this.rows - 1, cy + 1); yy++)
+    for(var xx = Math.max(0, cx - 1); xx <= Math.min(this.cols - 1, cx + 1); xx++){
+      var b = this.b[yy * this.cols + xx];
+      if(b) for(var i = 0; i < b.length; i++) out.push(b[i]);
     }
-  }
   return out;
 };
-
-// --- Bridson Poisson-disk. Blue noise, not uniform random:
-//     prevents clumping so vein density reads grown, not scattered.
-function poissonDisk(w, h, r, rng, inDomain, cap){
-  const k = 12, cell = r / Math.SQRT2;
-  const gw = Math.ceil(w / cell), gh = Math.ceil(h / cell);
-  const grid = new Int32Array(gw * gh).fill(-1);
-  const pts = [], active = [];
+function poisson(w, h, r, rng, inDomain, cap){
+  var k = 10, cell = r / Math.SQRT2;
+  var gw = Math.ceil(w / cell), gh = Math.ceil(h / cell);
+  var grid = new Int32Array(gw * gh).fill(-1);
+  var pts = [], active = [];
   function insert(px, py){
-    const gx = (px / cell) | 0, gy = (py / cell) | 0;
-    grid[gy * gw + gx] = pts.length;
-    pts.push([px, py]);
-    active.push(pts.length - 1);
+    grid[((py / cell) | 0) * gw + ((px / cell) | 0)] = pts.length;
+    pts.push([px, py]); active.push(pts.length - 1);
   }
-  let tries = 0;
-  while(pts.length === 0 && tries++ < 4000){
-    const px = rng() * w, py = rng() * h;
+  var tries = 0;
+  while(!pts.length && tries++ < 3000){
+    var px = rng() * w, py = rng() * h;
     if(inDomain(px, py)) insert(px, py);
   }
   while(active.length && pts.length < cap){
-    const ai = (rng() * active.length) | 0;
-    const p = pts[active[ai]];
-    let placed = false;
-    for(let i = 0; i < k; i++){
-      const ang = rng() * Math.PI * 2, rad = r * (1 + rng());
-      const qx = p[0] + Math.cos(ang) * rad, qy = p[1] + Math.sin(ang) * rad;
-      if(qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
-      if(!inDomain(qx, qy)) continue;
-      const gx = (qx / cell) | 0, gy = (qy / cell) | 0;
-      let ok = true;
-      for(let yy = Math.max(0, gy - 2); yy <= Math.min(gh - 1, gy + 2) && ok; yy++){
-        for(let xx = Math.max(0, gx - 2); xx <= Math.min(gw - 1, gx + 2) && ok; xx++){
-          const id = grid[yy * gw + xx];
+    var ai = (rng() * active.length) | 0, p = pts[active[ai]], placed = false;
+    for(var i = 0; i < k; i++){
+      var ang = rng() * Math.PI * 2, rad = r * (1 + rng());
+      var qx = p[0] + Math.cos(ang) * rad, qy = p[1] + Math.sin(ang) * rad;
+      if(qx < 0 || qy < 0 || qx >= w || qy >= h || !inDomain(qx, qy)) continue;
+      var gx = (qx / cell) | 0, gy = (qy / cell) | 0, ok = true;
+      for(var yy = Math.max(0, gy - 2); yy <= Math.min(gh - 1, gy + 2) && ok; yy++)
+        for(var xx = Math.max(0, gx - 2); xx <= Math.min(gw - 1, gx + 2) && ok; xx++){
+          var id = grid[yy * gw + xx];
           if(id >= 0){
-            const dx = pts[id][0] - qx, dy = pts[id][1] - qy;
+            var dx = pts[id][0] - qx, dy = pts[id][1] - qy;
             if(dx * dx + dy * dy < r * r) ok = false;
           }
         }
-      }
       if(ok){ insert(qx, qy); placed = true; break; }
     }
     if(!placed) active.splice(ai, 1);
   }
   return pts;
 }
-
-function generateVenation(w, h, cfg){
-  const rng = mulberry32(cfg.seed);
-
-  // Elongated elliptical domain, bled off two edges so the field
-  // reads as a fragment of something larger than the viewport.
-  const ox = w * cfg.originX, oy = h * cfg.originY;
-  const rx = w * cfg.spreadX, ry = h * cfg.spreadY;
+function venation(w, h, cfg){
+  var rng = mulberry32(cfg.seed);
+  var ox = w * cfg.originX, oy = h * cfg.originY;
+  var rx = w * cfg.spreadX, ry = h * cfg.spreadY;
   function inDomain(x, y){
-    const nx = (x - ox) / rx, ny = (y - oy) / ry;
+    var nx = (x - ox) / rx, ny = (y - oy) / ry;
     return nx * nx + ny * ny <= 1;
   }
-
-  const attractors = poissonDisk(w, h, cfg.attractorSpacing, rng, inDomain, cfg.attractorCap);
+  var attractors = poisson(w, h, cfg.spacing, rng, inDomain, cfg.cap);
   if(attractors.length < 8) return null;
 
-  // The conceptual origin sits off-canvas so the field reads as a
-  // fragment of something larger, but attractors only exist on-canvas.
-  // Anchor the root to the nearest real attractor so growth can never
-  // starve on iteration zero regardless of where the origin lands.
-  let rootX = ox, rootY = oy, bestD = Infinity;
-  for(let i = 0; i < attractors.length; i++){
-    const dx = attractors[i][0] - ox, dy = attractors[i][1] - oy;
-    const d = dx * dx + dy * dy;
-    if(d < bestD){ bestD = d; rootX = attractors[i][0]; rootY = attractors[i][1]; }
+  var rootX = ox, rootY = oy, best = Infinity;
+  for(var i = 0; i < attractors.length; i++){
+    var ddx = attractors[i][0] - ox, ddy = attractors[i][1] - oy;
+    var d = ddx * ddx + ddy * ddy;
+    if(d < best){ best = d; rootX = attractors[i][0]; rootY = attractors[i][1]; }
   }
-
-  const nodes = [{ x: rootX, y: rootY, parent: -1 }];
-  const grid = new SpatialGrid(cfg.influence, w, h);
+  var nodes = [{ x:rootX, y:rootY, parent:-1 }];
+  var grid = new Grid(cfg.influence, w, h);
   grid.add(0, rootX, rootY);
 
-  // Pre-seed a midrib. Pure space colonization from a single point
-  // radiates evenly and reads as a starburst; a leaf has one dominant
-  // axis with secondaries hanging off it. Laying the primary vein down
-  // first is what makes the result read as venation rather than a shrub.
-  {
-    const ribLen = w * cfg.midribSpan;
-    const steps = Math.max(2, Math.round(ribLen / cfg.step));
-    let px = rootX, py = rootY, parent = 0;
-    for(let i = 0; i < steps; i++){
-      // gentle arc, so the midrib is not a ruled line
-      const t = i / steps;
-      const drift = Math.sin(t * Math.PI) * cfg.midribArc;
-      px += cfg.step * cfg.biasX;
-      py += cfg.step * cfg.biasY + drift;
-      if(px < 0 || px >= w || py < 0 || py >= h) break;
-      nodes.push({ x: px, y: py, parent: parent });
-      parent = nodes.length - 1;
-      grid.add(parent, px, py);
-    }
+  /* a dominant midrib first. Pure colonisation from one point
+     radiates evenly and reads as a starburst, not venation */
+  var steps = Math.max(2, Math.round(w * cfg.midrib / cfg.step));
+  var px = rootX, py = rootY, parent = 0;
+  for(var s = 0; s < steps; s++){
+    px += cfg.step * cfg.biasX;
+    py += cfg.step * cfg.biasY + Math.sin(s / steps * Math.PI) * cfg.arc;
+    if(px < 0 || px >= w || py < 0 || py >= h) break;
+    nodes.push({ x:px, y:py, parent:parent });
+    parent = nodes.length - 1;
+    grid.add(parent, px, py);
   }
 
-  const live = attractors.slice();
-  const scratch = [];
-  const influence2 = cfg.influence * cfg.influence;
-  const kill2 = cfg.kill * cfg.kill;
-  const tStart = performance.now();
-  let fresh = [0];
-
-  for(let iter = 0; iter < cfg.maxIter && live.length; iter++){
-    // Hard guarantees. Space colonization densifies superlinearly,
-    // so without a node cap and a wall-clock budget the growth loop
-    // can block the main thread on a slow device.
-    if(nodes.length > cfg.nodeCap) break;
-    if(performance.now() - tStart > cfg.timeBudget) break;
-
-    const dirX = new Map(), dirY = new Map();
-
-    for(let a = 0; a < live.length; a++){
-      const ax = live[a][0], ay = live[a][1];
+  var live = attractors.slice(), scratch = [];
+  var inf2 = cfg.influence * cfg.influence, kill2 = cfg.kill * cfg.kill;
+  var t0 = performance.now();
+  for(var it = 0; it < cfg.maxIter && live.length; it++){
+    if(nodes.length > cfg.nodeCap || performance.now() - t0 > cfg.budget) break;
+    var dX = new Map(), dY = new Map();
+    for(var a = 0; a < live.length; a++){
+      var ax = live[a][0], ay = live[a][1];
       grid.near(ax, ay, scratch);
-      let best = -1, bestD = influence2;
-      for(let i = 0; i < scratch.length; i++){
-        const n = nodes[scratch[i]];
-        const dx = ax - n.x, dy = ay - n.y;
-        const d = dx * dx + dy * dy;
-        if(d < bestD){ bestD = d; best = scratch[i]; }
+      var bi = -1, bd = inf2;
+      for(var q = 0; q < scratch.length; q++){
+        var nn = nodes[scratch[q]];
+        var ddx2 = ax - nn.x, ddy2 = ay - nn.y, dd = ddx2 * ddx2 + ddy2 * ddy2;
+        if(dd < bd){ bd = dd; bi = scratch[q]; }
       }
-      if(best < 0) continue;
-      const n = nodes[best];
-      let dx = ax - n.x, dy = ay - n.y;
-      const len = Math.hypot(dx, dy) || 1;
-      dx /= len; dy /= len;
-      dirX.set(best, (dirX.get(best) || 0) + dx);
-      dirY.set(best, (dirY.get(best) || 0) + dy);
+      if(bi < 0) continue;
+      var nb = nodes[bi], vx = ax - nb.x, vy = ay - nb.y;
+      var vl = Math.hypot(vx, vy) || 1;
+      dX.set(bi, (dX.get(bi) || 0) + vx / vl);
+      dY.set(bi, (dY.get(bi) || 0) + vy / vl);
     }
-
-    if(dirX.size === 0) break;
-
-    fresh = [];
-    dirX.forEach(function(sx, idx){
-      const sy = dirY.get(idx);
-      // Normalize the attractor sum FIRST. Its magnitude scales with how
-      // many attractors pull on this node, so adding a fixed-magnitude
-      // bias to the raw sum lets busy nodes ignore the bias entirely,
-      // which is what turns secondaries into a perpendicular comb.
-      const sLen = Math.hypot(sx, sy);
-      if(sLen < 1e-6) return;
-      let vx = sx / sLen + cfg.biasX * cfg.biasStrength;
-      let vy = sy / sLen + cfg.biasY * cfg.biasStrength;
-      const len = Math.hypot(vx, vy);
-      if(len < 1e-6) return;
-      vx /= len; vy /= len;
-      // slight jitter keeps runs from going geometrically straight
-      const j = (rng() - 0.5) * cfg.jitter;
-      const cos = Math.cos(j), sin = Math.sin(j);
-      const rxv = vx * cos - vy * sin, ryv = vx * sin + vy * cos;
-      const p = nodes[idx];
-      const nx = p.x + rxv * cfg.step, ny = p.y + ryv * cfg.step;
-      nodes.push({ x: nx, y: ny, parent: idx });
-      const ni = nodes.length - 1;
-      grid.add(ni, nx, ny);
-      fresh.push(ni);
+    if(!dX.size) break;
+    var fresh = [];
+    dX.forEach(function(sx, idx){
+      var sy = dY.get(idx), sl = Math.hypot(sx, sy);
+      if(sl < 1e-6) return;
+      var vx2 = sx / sl + cfg.biasX * cfg.biasStrength;
+      var vy2 = sy / sl + cfg.biasY * cfg.biasStrength;
+      var l2 = Math.hypot(vx2, vy2);
+      if(l2 < 1e-6) return;
+      vx2 /= l2; vy2 /= l2;
+      var j = (rng() - 0.5) * cfg.jitter, cs = Math.cos(j), sn = Math.sin(j);
+      var pnode = nodes[idx];
+      var nx2 = pnode.x + (vx2 * cs - vy2 * sn) * cfg.step;
+      var ny2 = pnode.y + (vx2 * sn + vy2 * cs) * cfg.step;
+      nodes.push({ x:nx2, y:ny2, parent:idx });
+      grid.add(nodes.length - 1, nx2, ny2);
+      fresh.push(nodes.length - 1);
     });
-
-    // Only nodes added this iteration can newly consume an attractor,
-    // so this is exact and avoids re-querying the whole grid.
-    if(fresh.length){
-      for(let a = live.length - 1; a >= 0; a--){
-        const ax = live[a][0], ay = live[a][1];
-        for(let i = 0; i < fresh.length; i++){
-          const n = nodes[fresh[i]];
-          const dx = ax - n.x, dy = ay - n.y;
-          if(dx * dx + dy * dy < kill2){ live.splice(a, 1); break; }
-        }
+    for(var li = live.length - 1; li >= 0; li--){
+      for(var f = 0; f < fresh.length; f++){
+        var fn = nodes[fresh[f]];
+        var fdx = live[li][0] - fn.x, fdy = live[li][1] - fn.y;
+        if(fdx * fdx + fdy * fdy < kill2){ live.splice(li, 1); break; }
       }
     }
   }
 
-  // ---- children, depth, flow accumulation, Strahler order
-  const N = nodes.length;
-  const children = new Array(N);
-  for(let i = 0; i < N; i++) children[i] = [];
-  for(let i = 1; i < N; i++) children[nodes[i].parent].push(i);
-
-  const depth = new Int32Array(N);
-  const order = [];
-  const queue = [0];
+  /* flow = subtree size; width = its cube root (Murray's law) */
+  var N = nodes.length, children = [];
+  for(var c1 = 0; c1 < N; c1++) children[c1] = [];
+  for(var c2 = 1; c2 < N; c2++) children[nodes[c2].parent].push(c2);
+  var order = [], queue = [0];
   while(queue.length){
-    const i = queue.shift();
-    order.push(i);
-    for(const c of children[i]){ depth[c] = depth[i] + 1; queue.push(c); }
+    var cur = queue.shift(); order.push(cur);
+    for(var ci = 0; ci < children[cur].length; ci++) queue.push(children[cur][ci]);
   }
-  let maxDepth = 1;
-  for(let i = 0; i < N; i++) if(depth[i] > maxDepth) maxDepth = depth[i];
-
-  // flow = subtree size. Hydraulically correct taper, smoother
-  // than Strahler for stroke width.
-  const flow = new Float32Array(N).fill(1);
-  const strahler = new Int32Array(N).fill(1);
-  for(let i = order.length - 1; i >= 0; i--){
-    const n = order[i];
-    const ch = children[n];
-    if(!ch.length) continue;
-    let sum = 1, maxO = 0, countMax = 0;
-    for(const c of ch){
-      sum += flow[c];
-      if(strahler[c] > maxO){ maxO = strahler[c]; countMax = 1; }
-      else if(strahler[c] === maxO) countMax++;
-    }
-    flow[n] = sum;
-    strahler[n] = countMax >= 2 ? maxO + 1 : maxO;
+  var flow = new Float32Array(N).fill(1);
+  for(var oi = order.length - 1; oi >= 0; oi--){
+    var nd = order[oi], sum = 1;
+    for(var k2 = 0; k2 < children[nd].length; k2++) sum += flow[children[nd][k2]];
+    flow[nd] = sum;
   }
-  let maxFlow = 1;
-  for(let i = 0; i < N; i++) if(flow[i] > maxFlow) maxFlow = flow[i];
+  var maxFlow = 1;
+  for(var m = 0; m < N; m++) if(flow[m] > maxFlow) maxFlow = flow[m];
 
-  // ---- segments
-  // Width follows Murray's law: conducting radius scales with the cube
-  // root of the flow the vessel carries, the proportion that minimizes
-  // the energy cost of transport. Confirmed for plant xylem in
-  // McCulloh, Sperry & Adler, Nature 421 (2003).
-  const segs = [];
-  for(let i = 1; i < N; i++){
-    const p = nodes[nodes[i].parent];
-    segs.push({
-      x1: p.x, y1: p.y, x2: nodes[i].x, y2: nodes[i].y,
-      w: cfg.minWidth + Math.cbrt(flow[i] / maxFlow) * (cfg.maxWidth - cfg.minWidth),
-      g: depth[i] / maxDepth,
-      node: i
-    });
+  var segs = [];
+  for(var g2 = 1; g2 < N; g2++){
+    var pp = nodes[nodes[g2].parent];
+    segs.push({ x1:pp.x, y1:pp.y, x2:nodes[g2].x, y2:nodes[g2].y,
+                w: cfg.minW + Math.cbrt(flow[g2] / maxFlow) * (cfg.maxW - cfg.minW) });
   }
-
-  // ---- reticulation
-  // Angiosperm leaves close their minor veins into loops (areoles).
-  // This is not ornament: a purely branching tree has a single point of
-  // failure at every node, whereas a looped network reroutes around a
-  // severed vein instead of starving the tissue behind it.
-  // See Katifori et al., PRL 104 (2010) and Corson, PRL 104 (2010) on
-  // damage resilience and fluctuating load in reticulate venation.
-  {
-    const lg = new SpatialGrid(cfg.loopRadius, w, h);
-    for(let i = 0; i < N; i++) lg.add(i, nodes[i].x, nodes[i].y);
-    const probe = [];
-    const lr2 = cfg.loopRadius * cfg.loopRadius;
-    let made = 0;
-    for(let i = 0; i < N && made < cfg.maxLoops; i++){
-      if(strahler[i] > cfg.loopMaxOrder) continue;   // minor veins only
-      lg.near(nodes[i].x, nodes[i].y, probe);
-      for(let k = 0; k < probe.length; k++){
-        const j = probe[k];
-        if(j <= i) continue;
-        if(strahler[j] > cfg.loopMaxOrder) continue;
-        if(nodes[j].parent === i || nodes[i].parent === j) continue;
-        if(nodes[j].parent === nodes[i].parent) continue; // trivial triangle
-        const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
-        const d2 = dx * dx + dy * dy;
-        if(d2 > lr2 || d2 < 36) continue;
-        segs.push({
-          x1: nodes[i].x, y1: nodes[i].y, x2: nodes[j].x, y2: nodes[j].y,
-          w: cfg.minWidth * 1.15,
-          g: Math.max(depth[i], depth[j]) / maxDepth,
-          loop: true
-        });
-        if(++made >= cfg.maxLoops) break;
-      }
-    }
-  }
-
-  // sorted by growth order so the scroll reveal can bail early
-  segs.sort(function(a, b){ return a.g - b.g; });
-
-  // junction nodes, emergent from the biology rather than pasted on
-  const junctions = [];
-  for(let i = 0; i < N; i++){
-    if(children[i].length >= 2 && strahler[i] >= cfg.junctionOrder){
-      junctions.push({ x: nodes[i].x, y: nodes[i].y, g: depth[i] / maxDepth,
-                       r: 1.1 + Math.min(2.1, strahler[i] * 0.42) });
-    }
-  }
-
-  // ---- pulse chains, root to tip, with cumulative length
-  const leaves = [];
-  for(let i = 0; i < N; i++) if(!children[i].length && depth[i] > maxDepth * 0.35) leaves.push(i);
-  const chains = [];
-  const chainCount = Math.min(cfg.chainSamples, leaves.length);
-  for(let c = 0; c < chainCount; c++){
-    const leaf = leaves[(rng() * leaves.length) | 0];
-    const path = [];
-    let cur = leaf;
-    while(cur !== -1){ path.push(nodes[cur]); cur = nodes[cur].parent; }
-    path.reverse();
-    if(path.length < 6) continue;
-    const cum = [0];
-    for(let i = 1; i < path.length; i++){
-      cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y));
-    }
-    const gEnd = depth[leaf] / maxDepth;
-    chains.push({ pts: path, cum: cum, total: cum[cum.length - 1], g: gEnd });
-  }
-
-  return { segs: segs, junctions: junctions, chains: chains };
+  return segs;
 }
 
-/* ---------- renderer ---------- */
-const VeinField = (function(){
-  const field = document.getElementById('veinField');
-  const cvStruct = document.getElementById('veinStructure');
-  const cvSignal = document.getElementById('veinSignal');
-  if(!field || !cvStruct || !cvSignal) return { init: function(){} };
-
-  const ctxS = cvStruct.getContext('2d');
-  const ctxP = cvSignal.getContext('2d');
-
-  let model = null, W = 0, H = 0, dpr = 1;
-  let growth = reduceMotion ? 1 : 0;
-  let drawnGrowth = -1;
-  let pulses = [], lastSpawn = 0;
-  let rafId = null, running = false, visible = true;
-  let pointer = { x: -9999, y: -9999, tx: -9999, ty: -9999, active: false };
-  let segGrid = null;
-  const scratch = [];
-
-  const SAGE = '125,148,105';
-  const VERD = '47,107,94';
-
-  function config(){
-    const mobile = W < 760;
-    return {
-      seed: SESSION_SEED,
-      originX: mobile ? -0.05 : -0.03,
-      originY: mobile ? 0.1 : 0.08,
-      spreadX: mobile ? 1.15 : 1.25,
-      spreadY: mobile ? 1.05 : 1.15,
-      midribSpan: mobile ? 0.62 : 0.95,
-      midribArc: mobile ? 0.34 : 0.2,
-      // mobile is genuinely different parameters, not a scale-down:
-      // wider spacing yields fewer, chunkier branches that survive
-      // a small viewport instead of collapsing into mush.
-      attractorSpacing: mobile ? 44 : 29,
-      attractorCap: mobile ? 320 : 1500,
-      influence: mobile ? 120 : 96,
-      kill: mobile ? 26 : 17,
+function initVeins(host){
+  var cv = host.querySelector('canvas');
+  if(!cv) return;
+  var ctx = cv.getContext('2d');
+  var seed = (Math.random() * 2147483647) | 0;
+  function draw(){
+    var box = host.getBoundingClientRect();
+    var W = Math.round(box.width), H = Math.round(box.height);
+    if(W < 40 || H < 40) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, W < 760 ? 1.5 : 2);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var mobile = W < 760;
+    var segs = venation(W, H, {
+      seed:seed,
+      originX:-0.04, originY:0.06, spreadX:1.2, spreadY:1.15,
+      midrib: mobile ? 0.6 : 0.9, arc: mobile ? 0.3 : 0.18,
+      spacing: mobile ? 42 : 27, cap: mobile ? 260 : 900,
+      influence: mobile ? 120 : 96, kill: mobile ? 26 : 18,
       step: mobile ? 13 : 10,
-      // diagonal descent: a long horizontal run reads as a strikethrough
-      // when it crosses a line of body copy
-      biasX: mobile ? 0.55 : 0.72, biasY: mobile ? 0.84 : 0.7,
-      biasStrength: mobile ? 0.5 : 0.7,
-      jitter: 0.26,
-      maxIter: mobile ? 150 : 260,
-      nodeCap: mobile ? 2600 : 7200,
-      timeBudget: 110,
-      minWidth: 0.35,
-      maxWidth: mobile ? 2.4 : 2.9,
-      junctionOrder: 2,
-      loopRadius: mobile ? 34 : 26,
-      loopMaxOrder: 2,
-      maxLoops: mobile ? 90 : 340,
-      chainSamples: mobile ? 14 : 34,
-      baseAlpha: mobile ? 0.24 : 0.3
-    };
-  }
-
-  function buildSegGrid(cfg){
-    segGrid = new SpatialGrid(90, W, H);
-    for(let i = 0; i < model.segs.length; i++){
-      const s = model.segs[i];
-      segGrid.add(i, (s.x1 + s.x2) * 0.5, (s.y1 + s.y2) * 0.5);
-    }
-  }
-
-  function resize(){
-    // clientWidth, not innerWidth: innerWidth includes the scrollbar,
-    // which would stretch the backing store against its CSS box
-    const w = document.documentElement.clientWidth || window.innerWidth;
-    const h = document.documentElement.clientHeight || window.innerHeight;
-    if(w === W && h === H && model) return;
-    W = w; H = h;
-    // DPR capped: 3x on a phone triples fill cost for no visible gain
-    dpr = Math.min(window.devicePixelRatio || 1, W < 760 ? 1.5 : 2);
-    [cvStruct, cvSignal].forEach(function(c){
-      c.width = Math.round(W * dpr);
-      c.height = Math.round(H * dpr);
+      biasX:0.72, biasY:0.7, biasStrength:0.7, jitter:0.26,
+      maxIter: mobile ? 130 : 220, nodeCap: mobile ? 2000 : 4800, budget:90,
+      minW:0.35, maxW: mobile ? 2.1 : 2.6
     });
-    ctxS.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctxP.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const cfg = config();
-    const t0 = performance.now();
-    model = generateVenation(W, H, cfg);
-    if(model) buildSegGrid(cfg);
-    drawnGrowth = -1;
-    drawStructure();
-  }
-
-  function drawStructure(){
-    if(!model) return;
-    const cfg = config();
-    ctxS.clearRect(0, 0, W, H);
-    ctxS.lineCap = 'round';
-    const segs = model.segs;
-    for(let i = 0; i < segs.length; i++){
-      const s = segs[i];
-      if(s.g > growth) break; // sorted by growth order, so we can bail
-      // capillaries sit fainter than the midrib
-      const a = cfg.baseAlpha * (0.42 + 0.58 * (s.w / cfg.maxWidth));
-      ctxS.strokeStyle = 'rgba(' + SAGE + ',' + a.toFixed(3) + ')';
-      ctxS.lineWidth = s.w;
-      ctxS.beginPath();
-      ctxS.moveTo(s.x1, s.y1);
-      ctxS.lineTo(s.x2, s.y2);
-      ctxS.stroke();
-    }
-    for(let i = 0; i < model.junctions.length; i++){
-      const j = model.junctions[i];
-      if(j.g > growth) continue;
-      ctxS.fillStyle = 'rgba(' + SAGE + ',' + (cfg.baseAlpha * 0.95).toFixed(3) + ')';
-      ctxS.beginPath();
-      ctxS.arc(j.x, j.y, j.r, 0, Math.PI * 2);
-      ctxS.fill();
-    }
-    drawnGrowth = growth;
-  }
-
-  function spawnPulse(now){
-    if(!model || !model.chains.length) return;
-    const avail = model.chains.filter(function(c){ return c.g <= growth; });
-    if(!avail.length) return;
-    const c = avail[(Math.random() * avail.length) | 0];
-    pulses.push({ chain: c, d: 0, speed: 34 + Math.random() * 30, len: 46 + Math.random() * 34 });
-    lastSpawn = now;
-  }
-
-  function pointAt(chain, dist){
-    const cum = chain.cum, pts = chain.pts;
-    if(dist <= 0) return pts[0];
-    if(dist >= chain.total) return pts[pts.length - 1];
-    let lo = 0, hi = cum.length - 1;
-    while(lo < hi - 1){
-      const mid = (lo + hi) >> 1;
-      if(cum[mid] <= dist) lo = mid; else hi = mid;
-    }
-    const t = (dist - cum[lo]) / ((cum[hi] - cum[lo]) || 1);
-    return { x: pts[lo].x + (pts[hi].x - pts[lo].x) * t,
-             y: pts[lo].y + (pts[hi].y - pts[lo].y) * t };
-  }
-
-  function drawSignal(dt, now){
-    ctxP.clearRect(0, 0, W, H);
-    if(reduceMotion) return;
-
-    // --- travelling pulses. On a light ground signal reads as
-    //     increased density, never as luminance.
-    if(now - lastSpawn > 620) spawnPulse(now);
-    ctxP.lineCap = 'round';
-    for(let i = pulses.length - 1; i >= 0; i--){
-      const p = pulses[i];
-      p.d += p.speed * dt;
-      if(p.d - p.len > p.chain.total){ pulses.splice(i, 1); continue; }
-      const head = Math.min(p.d, p.chain.total);
-      const tail = Math.max(0, p.d - p.len);
-      const steps = 7;
-      for(let s = 0; s < steps; s++){
-        const d0 = tail + (head - tail) * (s / steps);
-        const d1 = tail + (head - tail) * ((s + 1) / steps);
-        const a = (s / steps);
-        const pa = pointAt(p.chain, d0), pb = pointAt(p.chain, d1);
-        // fade in at the tip of the leading edge, out at the tail
-        const edgeFade = Math.min(1, (p.chain.total - head) / 90);
-        ctxP.strokeStyle = 'rgba(' + VERD + ',' + (a * 0.5 * edgeFade).toFixed(3) + ')';
-        ctxP.lineWidth = 0.9 + a * 1.5;
-        ctxP.beginPath();
-        ctxP.moveTo(pa.x, pa.y);
-        ctxP.lineTo(pb.x, pb.y);
-        ctxP.stroke();
-      }
-    }
-    if(pulses.length > 8) pulses.splice(0, pulses.length - 8);
-
-    // --- cursor deepens veins locally. Spatial hash keeps this to
-    //     a small subset of segments per frame.
-    if(pointer.active && segGrid && model){
-      pointer.x += (pointer.tx - pointer.x) * Math.min(1, dt * 7);
-      pointer.y += (pointer.ty - pointer.y) * Math.min(1, dt * 7);
-      const R = 132, R2 = R * R;
-      segGrid.near(pointer.x, pointer.y, scratch);
-      ctxP.lineCap = 'round';
-      for(let i = 0; i < scratch.length; i++){
-        const s = model.segs[scratch[i]];
-        if(s.g > growth) continue;
-        const mx = (s.x1 + s.x2) * 0.5, my = (s.y1 + s.y2) * 0.5;
-        const d2 = (mx - pointer.x) * (mx - pointer.x) + (my - pointer.y) * (my - pointer.y);
-        if(d2 > R2) continue;
-        const f = 1 - Math.sqrt(d2) / R;
-        ctxP.strokeStyle = 'rgba(' + VERD + ',' + (f * f * 0.32).toFixed(3) + ')';
-        ctxP.lineWidth = s.w * (1 + f * 0.5);
-        ctxP.beginPath();
-        ctxP.moveTo(s.x1, s.y1);
-        ctxP.lineTo(s.x2, s.y2);
-        ctxP.stroke();
-      }
+    ctx.clearRect(0, 0, W, H);
+    if(!segs) return;
+    ctx.lineCap = 'round';
+    for(var i = 0; i < segs.length; i++){
+      var s = segs[i];
+      var alpha = 0.2 * (0.42 + 0.58 * (s.w / 2.6));
+      ctx.strokeStyle = 'rgba(125,148,105,' + alpha.toFixed(3) + ')';
+      ctx.lineWidth = s.w;
+      ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke();
     }
   }
-
-  let lastT = 0;
-  function frame(now){
-    if(!running){ rafId = null; return; }
-    const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
-    lastT = now;
-    // structure repaints only when growth crosses a quantised step,
-    // so the expensive many-segment stroke happens ~100x per page,
-    // not 60x per second
-    if(Math.abs(growth - drawnGrowth) > 0.01) drawStructure();
-    drawSignal(dt, now);
-    rafId = requestAnimationFrame(frame);
-  }
-
-  function start(){
-    if(running || reduceMotion) return;
-    running = true; lastT = performance.now();
-    rafId = requestAnimationFrame(frame);
-  }
-  function stop(){
-    running = false;
-    if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
-  }
-
-  function onScroll(){
-    if(reduceMotion) return;
-    const doc = document.documentElement;
-    const max = (doc.scrollHeight - doc.clientHeight) || 1;
-    const pct = Math.min(1, Math.max(0, doc.scrollTop / max));
-    // ease so the field is already partly grown at the top,
-    // then completes well before the footer
-    growth = Math.min(1, 0.26 + pct * 1.05);
-  }
-
-  function init(){
-    resize();
-    if(reduceMotion){
-      growth = 1;
-      drawStructure();
-      return;
-    }
-    onScroll();
-    drawStructure();
-
-    let rt;
-    window.addEventListener('resize', function(){
-      clearTimeout(rt);
-      rt = setTimeout(resize, 250);
-    });
-    window.addEventListener('scroll', onScroll, { passive: true });
-
-    if(window.matchMedia('(hover: hover) and (pointer: fine)').matches){
-      window.addEventListener('pointermove', function(e){
-        pointer.tx = e.clientX; pointer.ty = e.clientY;
-        if(!pointer.active){ pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; }
-      }, { passive: true });
-      window.addEventListener('pointerleave', function(){ pointer.active = false; });
-    }
-
-    document.addEventListener('visibilitychange', function(){
-      if(document.hidden) stop(); else if(visible) start();
-    });
-
-    if('IntersectionObserver' in window){
-      new IntersectionObserver(function(entries){
-        visible = entries[0].isIntersecting;
-        if(visible && !document.hidden) start(); else stop();
-      }, { threshold: 0 }).observe(field);
-    } else {
-      start();
-    }
-    start();
-  }
-
-  return { init: init };
-})();
+  draw();
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt); rt = setTimeout(draw, 280);
+  });
+}
 
 /* ============================================================
-   2. reveals
+   section nav
+   Measures the sticky chrome so anchors land in the right place,
+   then marks the section the reader is currently in.
+   ============================================================ */
+function initSectionNav(){
+  var header = document.querySelector('header');
+  var nav = document.getElementById('sectionNav');
+  var root = document.documentElement;
+
+  function measure(){
+    var h = header ? header.getBoundingClientRect().height : 0;
+    var s = nav ? nav.getBoundingClientRect().height : 0;
+    root.style.setProperty('--header-h', h + 'px');
+    root.style.setProperty('--chrome-h', (h + s) + 'px');
+  }
+  measure();
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt); rt = setTimeout(measure, 200);
+  });
+  if(!nav) return;
+
+  var links = Array.prototype.slice.call(nav.querySelectorAll('a'));
+  var targets = links.map(function(a){
+    return document.querySelector(a.getAttribute('href'));
+  });
+
+  function current(){
+    var chrome = parseFloat(getComputedStyle(root).getPropertyValue('--chrome-h')) || 0;
+    /* A clicked anchor lands its section exactly on scroll-margin-top, which is
+       this same line. Sub-pixel layout put it a fraction below, so the section
+       failed the test and the previous one stayed marked. The tolerance covers
+       that landing. */
+    var line = chrome + 24 + 3;
+    var found = -1;
+    for(var i = 0; i < targets.length; i++){
+      if(targets[i] && targets[i].getBoundingClientRect().top <= line) found = i;
+    }
+    /* at the very bottom the last section may never cross the line */
+    if(window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) found = links.length - 1;
+    return found;
+  }
+
+  var active = -2;
+  function mark(i){
+    if(i === active) return;
+    active = i;
+    links.forEach(function(a, n){
+      if(n === i) a.setAttribute('aria-current', 'true');
+      else a.removeAttribute('aria-current');
+    });
+    /* keep the active item in view on a narrow strip */
+    if(i >= 0){
+      var a = links[i], box = nav.querySelector('.sectionnav-scroll');
+      var ar = a.getBoundingClientRect(), br = box.getBoundingClientRect();
+      if(ar.left < br.left || ar.right > br.right){
+        box.scrollTo({ left: a.offsetLeft - box.clientWidth / 2 + a.offsetWidth / 2,
+                       behavior: REDUCED ? 'auto' : 'smooth' });
+      }
+    }
+  }
+
+  function paint(){ mark(current()); }
+
+  /* Clicking a link marks it at once rather than waiting for the smooth
+     scroll to arrive, and the spy is held off until the scroll settles so
+     it cannot flicker through the sections on the way. */
+  var holdUntil = 0;
+  links.forEach(function(a, i){
+    a.addEventListener('click', function(){
+      mark(i);
+      holdUntil = REDUCED ? 0 : Date.now() + 800;
+    });
+  });
+  function release(){ holdUntil = 0; }
+  window.addEventListener('wheel', release, { passive: true });
+  window.addEventListener('touchstart', release, { passive: true });
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'PageDown' || e.key === 'PageUp' || e.key === 'Home' || e.key === 'End' ||
+       e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === ' ') release();
+  });
+
+  /* Throttled on a timestamp rather than a requestAnimationFrame flag.
+     rAF is paused while a tab is in the background, and a boolean guard
+     set just before a paused rAF never clears, which killed the spy for
+     the rest of the session. */
+  var last = 0, tail = null;
+  function onScroll(){
+    var now = Date.now();
+    if(now - last >= 80){
+      last = now;
+      if(now >= holdUntil) paint();
+    } else {
+      clearTimeout(tail);
+      tail = setTimeout(function(){
+        last = Date.now();
+        if(last >= holdUntil) paint();
+      }, 90);
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  paint();
+}
+
+/* ============================================================
+   reveals
    ============================================================ */
 function initReveals(){
-  const targets = document.querySelectorAll('.reveal');
-  if(reduceMotion || !('IntersectionObserver' in window)){
-    targets.forEach(function(t){ t.classList.add('in'); });
+  var targets = document.querySelectorAll('.reveal');
+  if(REDUCED || !('IntersectionObserver' in window)){
+    Array.prototype.forEach.call(targets, function(t){ t.classList.add('in'); });
     return;
   }
-  const io = new IntersectionObserver(function(entries){
+  /* Anything already on screen at load is shown at once. Meaningful
+     content must never wait on an observer callback to become readable. */
+  var vh = window.innerHeight || document.documentElement.clientHeight;
+  var deferred = [];
+  Array.prototype.forEach.call(targets, function(t){
+    if(t.getBoundingClientRect().top < vh) t.classList.add('in');
+    else deferred.push(t);
+  });
+  var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
       if(!e.isIntersecting) return;
-      const sibs = Array.prototype.slice.call(e.target.parentNode.children).filter(function(n){
+      var sibs = Array.prototype.filter.call(e.target.parentNode.children, function(n){
         return n.classList && n.classList.contains('reveal');
       });
-      const i = Math.max(0, sibs.indexOf(e.target));
-      e.target.style.transitionDelay = Math.min(i * 70, 420) + 'ms';
+      var i = Math.max(0, sibs.indexOf(e.target));
+      e.target.style.transitionDelay = Math.min(i * 45, 200) + 'ms';
       e.target.classList.add('in');
       io.unobserve(e.target);
     });
-  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
-  targets.forEach(function(t){ io.observe(t); });
+  }, { threshold:0.12, rootMargin:'0px 0px -8% 0px' });
+  deferred.forEach(function(t){ io.observe(t); });
 }
 
 /* ============================================================
-   3. magnetic buttons, one variable-axis wordmark moment
+   page wiring
    ============================================================ */
-function initMagnetic(){
-  if(reduceMotion) return;
-  if(!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-  document.querySelectorAll('.magnetic').forEach(function(btn){
-    btn.addEventListener('pointermove', function(e){
-      const r = btn.getBoundingClientRect();
-      const dx = (e.clientX - (r.left + r.width / 2)) / r.width;
-      const dy = (e.clientY - (r.top + r.height / 2)) / r.height;
-      btn.style.transform = 'translate(' + (dx * 7).toFixed(2) + 'px,' + (dy * 5).toFixed(2) + 'px)';
-    });
-    btn.addEventListener('pointerleave', function(){ btn.style.transform = ''; });
+function mount(svgId, spec){
+  var svg = document.getElementById(svgId);
+  if(!svg) return null;
+  var sc = SystemCanvas(svg, spec);
+  var plate = svg.closest('.canvas-plate');
+  if(plate && !plate.dataset.roles){ plate.dataset.roles = '1'; initNodeRoles(plate); }
+  syncPanHint(svg);
+  syncLegend(plate, spec);
+  return sc;
+}
+
+/* The legend describes the canvas in front of the reader, not the canvas
+   in the abstract. The mobile hero carries no approval step, so it must
+   not offer a key for one. */
+function syncLegend(plate, spec){
+  if(!plate) return;
+  var legend = plate.querySelector('.canvas-legend');
+  if(!legend) return;
+  var present = {};
+  spec.nodes.forEach(function(n){
+    present[n.kind === 'output' ? 'std' : n.kind] = true;
+  });
+  var map = { 'k-trigger':'trigger', 'k-flow':'std', 'k-ai':'ai', 'k-human':'human' };
+  Array.prototype.forEach.call(legend.children, function(item){
+    for(var cls in map){
+      if(item.classList.contains(cls)){
+        item.hidden = !present[map[cls]];
+        return;
+      }
+    }
   });
 }
 
-function initWordmark(){
-  const el = document.getElementById('heroWord');
-  if(!el) return;
-  if(reduceMotion){ el.style.fontVariationSettings = "'wdth' 100,'wght' 330"; return; }
-  // single deliberate use of the width axis
-  requestAnimationFrame(function(){
-    el.style.transition = 'font-variation-settings 1.5s cubic-bezier(.16,1,.3,1) .15s';
-    el.style.fontVariationSettings = "'wdth' 100,'wght' 330";
-  });
-}
-
-/* ---------- boot ----------
-   The vein field is decorative. It is isolated so that a failure
-   there can never take down the content layer with it. */
-function boot(){
-  try{
-    VeinField.init();
-  }catch(err){
-    console.error('[BOTANIA] vein field disabled:', err);
-    const f = document.getElementById('veinField');
-    if(f) f.style.display = 'none';
+/* The pan affordance appears only where the canvas genuinely overflows.
+   the mobile hero has its own vertical layout and fits, so it must not
+   tell the reader to drag something that does not move. */
+function syncPanHint(svg){
+  var scroller = svg.parentElement;
+  var plate = svg.closest('.canvas-plate');
+  if(!scroller || !plate) return;
+  var hint = plate.querySelector('.pan-hint');
+  if(!hint) return;
+  function check(){
+    hint.classList.toggle('is-on', scroller.scrollWidth > scroller.clientWidth + 2);
   }
+  check();
+  if(!svg.dataset.panBound){
+    svg.dataset.panBound = '1';
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(check, 300); });
+  }
+}
+
+function initHero(){
+  var svg = document.getElementById('heroCanvas');
+  if(!svg) return;
+  var mobile = window.matchMedia('(max-width: 720px)').matches;
+  var sc = mount('heroCanvas', mobile ? SPECS.heroMobile : SPECS.heroDesktop);
+  if(!sc) return;
+
+  function run(){
+    if(REDUCED){ sc.settle(); sc.staticSignal(); return; }
+    sc.seed();
+    whenVisible(svg, function(){ sc.grow(); });
+  }
+  run();
+
+  var replay = document.getElementById('heroReplay');
+  if(replay){
+    if(REDUCED){
+      replay.textContent = 'Motion reduced';
+      replay.disabled = true;
+      replay.style.opacity = '.55';
+      replay.style.cursor = 'default';
+    } else {
+      replay.addEventListener('click', function(){ sc.grow(); });
+    }
+  }
+
+  /* Mobile is a different system, not a smaller one, so crossing the
+     breakpoint rebuilds it rather than scaling the desktop layout. */
+  var wasMobile = mobile, rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){
+      var isMobile = window.matchMedia('(max-width: 720px)').matches;
+      if(isMobile === wasMobile) return;
+      wasMobile = isMobile;
+      sc.stop();
+      sc = mount('heroCanvas', isMobile ? SPECS.heroMobile : SPECS.heroDesktop);
+      if(REDUCED){ sc.settle(); sc.staticSignal(); } else { sc.grow(); }
+    }, 320);
+  });
+}
+
+/* Manual → BOTANIA → Intelligent system, on one canvas. */
+function initTransform(){
+  var svg = document.getElementById('transformCanvas');
+  if(!svg) return;
+  var sc = mount('transformCanvas', SPECS.transform);
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('#transformTabs button'));
+  var caption = document.getElementById('transformCaption');
+  var CAPTIONS = [
+    'Six applications, all working. Right now a person moves information between them.',
+    'We map how information actually moves, then build the connections that carry it.',
+    'The same six applications, working as one system. Information arrives where it is needed.'
+  ];
+  var state = -1, autoTimer = null;
+
+  function set(i, manual){
+    if(i === state) return;
+    state = i;
+    buttons.forEach(function(b, bi){ b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
+    if(caption) caption.textContent = CAPTIONS[i];
+    sc.stop();
+
+    if(i === 0){
+      if(REDUCED){ sc.settle(); svg.classList.add('state-manual'); hideLinks(); }
+      else sc.seedNodesOnly();
+    } else if(i === 1){
+      svg.classList.remove('state-manual');
+      if(REDUCED){ restoreLinks(); sc.settle(); }
+      else { standNodes(); sc.connect(); }
+    } else {
+      svg.classList.remove('state-manual');
+      restoreLinks(); sc.settle();
+      if(REDUCED) sc.staticSignal(); else sc.flow();
+    }
+    if(manual && autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  }
+
+  function eachLink(fn){
+    Array.prototype.forEach.call(svg.querySelectorAll('.links path, .ports circle'), fn);
+  }
+  function hideLinks(){ eachLink(function(p){ p.style.opacity = 0; }); }
+  function restoreLinks(){ eachLink(function(p){ p.style.opacity = ''; }); }
+  function standNodes(){
+    Array.prototype.forEach.call(svg.querySelectorAll('.sysnode'), function(g){
+      g.style.transition = 'none'; g.style.opacity = 1; g.style.transform = 'none';
+    });
+  }
+
+  buttons.forEach(function(b, i){ b.addEventListener('click', function(){ set(i, true); }); });
+
+  whenVisible(svg, function(){
+    if(state !== -1) return;
+    set(0);
+    if(REDUCED) return;
+    autoTimer = setTimeout(function(){
+      set(1);
+      autoTimer = setTimeout(function(){ set(2); }, 3400);
+    }, 1800);
+  });
+}
+
+/* A canvas that names its own spec and has no tab strip. Used where a
+   section's copy is about one specific system. */
+function initNamedCanvases(){
+  Array.prototype.forEach.call(document.querySelectorAll('svg[data-spec]'), function(svg){
+    var spec = SPECS[svg.dataset.spec];
+    if(!spec || !svg.id) return;
+    var sc = mount(svg.id, spec);
+    if(!sc) return;
+    if(REDUCED){ sc.settle(); sc.staticSignal(); return; }
+    sc.seed();
+    whenVisible(svg, function(){ sc.grow(); });
+  });
+}
+
+function initScenarios(){
+  var svg = document.getElementById('scenarioCanvas');
+  if(!svg) return;
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('#scenarioTabs button'));
+  var caption = document.getElementById('scenarioCaption');
+  var LIST = [
+    { key:'scenarioLead',    cap:'An inquiry arrives and the system already knows what happens next: read it, record it, reply, book the time, and keep the pipeline current. You look at the ones worth your time.' },
+    { key:'scenarioClient',  cap:'Onboarding runs itself. Intake is collected once, documents are chased, setup tasks are assigned, and everything is read and checked. Nothing reaches the client until a person says so.' },
+    { key:'scenarioService', cap:'A referral arrives and the work runs through to delivery. The report is built from what the system already recorded, you approve the finding, and the invoice goes out with it.' }
+  ];
+  var sc = null, current = -1;
+
+  function select(i){
+    if(i === current) return;
+    current = i;
+    buttons.forEach(function(b, bi){ b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
+    if(caption) caption.textContent = LIST[i].cap;
+    if(sc) sc.stop();
+    sc = mount('scenarioCanvas', SPECS[LIST[i].key]);
+    if(REDUCED){ sc.settle(); sc.staticSignal(); return; }
+    sc.grow();
+  }
+  buttons.forEach(function(b, i){ b.addEventListener('click', function(){ select(i); }); });
+  /* Only auto-select if the visitor has not already chosen. A late
+     observer callback must never overrule an explicit click. */
+  whenVisible(svg, function(){ if(current === -1) select(0); });
+}
+
+/* Branches leaning toward the button they converge on. */
+function initCta(){
+  var svg = document.getElementById('ctaCanvas');
+  if(!svg) return;
+  var narrow = window.matchMedia('(max-width: 620px)').matches;
+  var sc = mount('ctaCanvas', narrow ? SPECS.ctaMobile : SPECS.cta);
+  if(REDUCED){ sc.settle(); sc.staticSignal(); }
+  else { sc.seed(); whenVisible(svg, function(){ sc.grow(); }); }
+
+  var wasNarrow = narrow, rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){
+      var isNarrow = window.matchMedia('(max-width: 620px)').matches;
+      if(isNarrow === wasNarrow) return;
+      wasNarrow = isNarrow;
+      sc.stop();
+      sc = mount('ctaCanvas', isNarrow ? SPECS.ctaMobile : SPECS.cta);
+      if(REDUCED){ sc.settle(); sc.staticSignal(); } else { sc.grow(); }
+    }, 320);
+  });
+
+  if(REDUCED) return;
+  var btn = document.querySelector('.final-cta .btn-solid');
+  if(!btn) return;
+  btn.addEventListener('pointerenter', function(){ svg.classList.add('lean'); });
+  btn.addEventListener('pointerleave', function(){ svg.classList.remove('lean'); });
+  btn.addEventListener('focus', function(){ svg.classList.add('lean'); });
+  btn.addEventListener('blur', function(){ svg.classList.remove('lean'); });
+}
+
+/* ============================================================
+   boot
+   The canvases are enhancement. A failure in any of them must
+   never take the content layer down with it.
+   ============================================================ */
+function boot(){
   initReveals();
-  initMagnetic();
-  initWordmark();
+  try{ initSectionNav(); }catch(err){ console.error('[BOTANIA] section nav disabled:', err); }
+  [initHero, initTransform, initScenarios, initNamedCanvases, initCta].forEach(function(fn){
+    try{ fn(); }catch(err){ console.error('[BOTANIA] canvas disabled:', err); }
+  });
+  try{
+    Array.prototype.forEach.call(document.querySelectorAll('.veins'), initVeins);
+  }catch(err){
+    console.error('[BOTANIA] venation disabled:', err);
+    Array.prototype.forEach.call(document.querySelectorAll('.veins'), function(v){ v.style.display = 'none'; });
+  }
 }
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', boot);
-} else {
-  boot();
-}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
 })();
 
 /* ============================================================
    MOBILE NAVIGATION
-   Appended as its own isolated block. Nothing above this line
-   was modified when the single-page build became multi-page.
+   Carried over unchanged from the previous build.
    ============================================================ */
 (function(){
 'use strict';
-const toggle = document.getElementById('navToggle');
-const panel  = document.getElementById('primaryNav');
+var toggle = document.getElementById('navToggle');
+var panel  = document.getElementById('primaryNav');
 if(!toggle || !panel) return;
 
 function close(){
@@ -725,29 +1258,26 @@ function open(){
   toggle.setAttribute('aria-expanded', 'true');
   toggle.setAttribute('aria-label', 'Close menu');
 }
-
-toggle.addEventListener('click', function(){
+/* pointerdown, not click. Waiting for release puts the whole press
+   interval between the tap and any feedback */
+toggle.addEventListener('pointerdown', function(e){
+  e.preventDefault();
   if(panel.classList.contains('open')) close(); else open();
 });
-
-// following a link should not leave the panel hanging open
-panel.addEventListener('click', function(e){
-  if(e.target.closest('a')) close();
-});
-
-document.addEventListener('keydown', function(e){
-  if(e.key === 'Escape' && panel.classList.contains('open')){
-    close();
-    toggle.focus();
+toggle.addEventListener('click', function(e){ e.preventDefault(); });
+toggle.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' || e.key === ' '){
+    e.preventDefault();
+    if(panel.classList.contains('open')) close(); else open();
   }
 });
-
-// returning to desktop width must not strand the panel in its open state
-let rt;
+panel.addEventListener('click', function(e){ if(e.target.closest('a')) close(); });
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && panel.classList.contains('open')){ close(); toggle.focus(); }
+});
+var rt;
 window.addEventListener('resize', function(){
   clearTimeout(rt);
-  rt = setTimeout(function(){
-    if(window.innerWidth > 800) close();
-  }, 200);
+  rt = setTimeout(function(){ if(window.innerWidth > 800) close(); }, 200);
 });
 })();
