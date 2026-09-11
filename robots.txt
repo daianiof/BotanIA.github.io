@@ -1,0 +1,8 @@
+# BOTANIA
+# Everything public is crawlable. CSS, JS, fonts and images must stay
+# reachable or Google cannot render the page as a visitor sees it.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://botaniaco.com/sitemap.xml
