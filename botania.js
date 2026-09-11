@@ -91,6 +91,9 @@ function SystemCanvas(svg, spec){
   svg.setAttribute('width', spec.viewBox[0]);
   svg.setAttribute('height', spec.viewBox[1]);
   svg.setAttribute('role', 'img');
+  /* Lets the stylesheet hold a measure for the vertical layouts without
+     having to know which spec is mounted. */
+  svg.classList.toggle('is-vertical', vertical);
   while(svg.firstChild) svg.removeChild(svg.firstChild);
 
   spec.nodes.forEach(function(n){ byId[n.id] = n; });
@@ -134,8 +137,8 @@ function SystemCanvas(svg, spec){
   spec.nodes.forEach(function(n, i){
     var y = n.cy - NODE_H / 2, flip = (i % 2) === 1;
     var g = el('g', { 'class':'sysnode', tabindex:'0', role:'group',
-                      'aria-label': n.label + (n.role ? '. ' + n.role : '') });
-    g.dataset.role = n.role || '';
+                      'aria-label': tr(n.label) + (n.role ? '. ' + tr(n.role) : '') });
+    g.dataset.role = n.role ? tr(n.role) : '';
     g.dataset.label = n.label;
 
     g.appendChild(el('path', { 'class':'n-halo', d: nodePath(n.x - 5, y - 5, n.w + 10, NODE_H + 10, flip),
@@ -162,7 +165,7 @@ function SystemCanvas(svg, spec){
                          'font-family':'Archivo, sans-serif', 'font-size':13,
                          'font-variation-settings':"'wdth' 100,'wght' 550",
                          fill: n.kind === 'trigger' ? '#FAF8F1' : '#1F1913' });
-    t.textContent = n.label;
+    t.textContent = tr(n.label);
     g.appendChild(t);
 
     g.appendChild(el('circle', { 'class':'n-status', cx:n.x + n.w - 12, cy:n.cy - 12, r:2.4,
@@ -462,13 +465,167 @@ function whenVisible(node, fn){
 
 var ROLES = {
   lead:   'A form submission, an email or a referral. Whatever starts the process.',
-  qual:   'Reads the inquiry, checks it against your criteria, and routes it. Anything unclear goes to a person.',
+  qual:   'AI reads the enquiry, checks it against your criteria and routes it. Anything unclear goes to a person.',
   crm:    'The record is created and kept current without anyone typing it in twice.',
   sched:  'Offers real availability and books the time automatically.',
   follow: 'Writes a reply in your voice, using what the system already knows about this lead.',
   pipe:   'Stage, value and next action stay accurate because the system updates them.',
-  review: 'You approve anything above an amount you set. The system waits, then carries on.'
+  review: 'You approve anything unusual, or above a value you set. The system waits, then carries on.'
 };
+
+/* ---- Portuguese ----------------------------------------------------------
+   Both languages share this file. The diagram labels, hover text and captions
+   live here rather than in the markup, so they are swapped at render time
+   based on <html lang>. Anything missing from the table falls through to
+   English, which keeps a half-finished translation readable. */
+var PT_ON = /^pt/i.test(document.documentElement.getAttribute('lang') || '');
+var PT = {
+  /* node labels */
+  'New Lead':'Novo Lead',
+  'Capture':'Captura',
+  'Response Agent':'Agente de Resposta',
+  'Reporting Agent':'Agente de Relatório',
+  'CRM Update':'Atualiza CRM',
+  'AI Qualification':'Qualificação IA',
+  'Scheduling':'Agendamento',
+  'Owner Review':'Sua Aprovação',
+  'New Client':'Novo Cliente',
+  'Intake':'Cadastro',
+  'Documents':'Documentos',
+  'Internal Tasks':'Tarefas Internas',
+  'AI Processing':'Leitura por IA',
+  'Approval':'Aprovação',
+  'Client Update':'Aviso ao Cliente',
+  'Referral':'Indicação',
+  'Service':'Serviço',
+  'Invoice':'Nota Fiscal',
+  'Client Delivery':'Entrega Final',
+  'Growth':'Crescimento',
+  'Structure':'Estrutura',
+  'Intelligence':'Inteligência',
+  'Inbox':'Caixa de Entrada',
+  'Spreadsheets':'Planilhas',
+  'Calendar':'Agenda',
+  'Invoicing':'Faturamento',
+
+  /* shared hover text */
+  'The details are recorded once, in a consistent shape, with nobody retyping them.':
+    'Os dados são registrados uma vez, no mesmo formato, sem ninguém digitar de novo.',
+  'An agent that writes the reply, using what the system already knows about this lead. You send it, or edit it first.':
+    'Um agente que escreve a resposta com o que o sistema já sabe sobre esse lead. Você envia ou edita antes.',
+  'AI reads the enquiry, checks it against your criteria and routes it. Anything unclear goes to a person.':
+    'A IA lê o contato, confere com os seus critérios e encaminha. O que ficar em dúvida vai para uma pessoa.',
+  'You approve anything unusual, or above a value you set. The system waits, then carries on.':
+    'Você aprova o que for fora do padrão, ou acima de um valor que definir. O sistema espera e depois segue.',
+  'A form submission, an email or a referral. Whatever starts the process.':
+    'Um formulário, um e-mail ou uma indicação. O que quer que comece o processo.',
+  'Reads the inquiry, checks it against your criteria, and routes it. Anything unclear goes to a person.':
+    'Lê o contato, confere com os seus critérios e encaminha. O que ficar em dúvida vai para uma pessoa.',
+  'The record is created and kept current without anyone typing it in twice.':
+    'O registro é criado e mantido em dia sem ninguém digitar duas vezes.',
+  'Offers real availability and books the time automatically.':
+    'Oferece os horários que existem de verdade e agenda automaticamente.',
+  'Writes a reply in your voice, using what the system already knows about this lead.':
+    'Escreve uma resposta no seu tom, usando o que o sistema já sabe sobre esse lead.',
+  'You approve anything above an amount you set. The system waits, then carries on.':
+    'Você aprova tudo acima de um valor que definir. O sistema espera e depois segue.',
+
+  /* per-node hover text */
+  'Chases the ones that go quiet, on a schedule you set once.':
+    'Cobra quem some, no ritmo que você definir uma vez.',
+  'A signed proposal or a closed deal. Onboarding starts itself.':
+    'Uma proposta assinada ou um negócio fechado. O onboarding começa sozinho.',
+  'One form, asked once, feeding everything after it.':
+    'Um formulário, perguntado uma vez, alimentando tudo depois.',
+  'Asks for what is missing and chases it until it arrives.':
+    'Pede o que está faltando e cobra até chegar.',
+  'Assigns the setup work to the right people with the right dates.':
+    'Distribui o trabalho de setup para as pessoas certas com os prazos certos.',
+  'Reads what came in, pulls out what matters, and flags anything that looks wrong.':
+    'Lê o que chegou, separa o que importa e sinaliza o que parece errado.',
+  'A person confirms before anything reaches the client.':
+    'Uma pessoa confirma antes de qualquer coisa chegar ao cliente.',
+  'The client hears where things stand without having to ask.':
+    'O cliente sabe como as coisas estão sem precisar perguntar.',
+  'However the work arrives: a partner, a portal or a phone call.':
+    'Como o trabalho chegar: um parceiro, um portal ou um telefonema.',
+  'Captured once, organized, and sent to the right place.':
+    'Registrado uma vez, organizado e encaminhado para o lugar certo.',
+  'Booked against real availability and confirmed automatically.':
+    'Agendado nos horários que existem de verdade e confirmado automaticamente.',
+  'The work your team is there to do.':
+    'O trabalho que a sua equipe está ali para fazer.',
+  'An agent that pulls together the report from what the system already recorded.':
+    'Um agente que monta o relatório a partir do que o sistema já registrou.',
+  'Raised from the work the system already recorded.':
+    'Emitida a partir do trabalho que o sistema já registrou.',
+  'You review the finding before it goes to the client.':
+    'Você revisa o resultado antes de ir para o cliente.',
+  'Report and invoice reach the client together, on time.':
+    'Relatório e nota chegam juntos ao cliente, no prazo.',
+  'Where most of the real information still lives.':
+    'Onde a maior parte da informação de verdade ainda mora.',
+  'Accurate only as long as someone keeps updating it.':
+    'Só está correto enquanto alguém continua atualizando.',
+  'Booked by hand, one email thread at a time.':
+    'Agendado na mão, um e-mail por vez.',
+  'Attached, downloaded, re-uploaded and misfiled.':
+    'Anexado, baixado, reenviado e salvo no lugar errado.',
+  'Raised from memory at the end of the month.':
+    'Emitida de memória no fim do mês.',
+  'Where the real numbers often end up.':
+    'Onde os números de verdade costumam parar.',
+
+  /* calculator */
+  'under half a workweek':'menos de meia semana de trabalho',
+  'about one workweek':'cerca de uma semana de trabalho',
+  'about {n} workweeks':'cerca de {n} semanas de trabalho',
+
+  /* scenario captions */
+  'An enquiry is captured and recorded in your CRM. AI works out what it needs, a response agent writes the reply, and scheduling is handled automatically. You review anything unusual before follow-up continues.':
+    'O contato é registrado e vai para o CRM. A IA identifica o que ele precisa, um agente de resposta escreve o retorno e o agendamento acontece automaticamente. Você revisa o que for fora do padrão antes do follow-up seguir.',
+  'Onboarding runs on its own. Details are collected once, documents are requested, setup tasks are assigned, and AI checks what comes back. A person approves before anything reaches the client.':
+    'O onboarding roda sozinho. Os dados são coletados uma vez, os documentos são solicitados, as tarefas de setup são distribuídas e a IA confere o que chega. Uma pessoa aprova antes de qualquer coisa ir para o cliente.',
+  'A referral moves through scheduling and delivery. A reporting agent builds the report from what the system already recorded, you approve the result, and the invoice goes out with it.':
+    'Uma indicação passa pelo agendamento e segue até a entrega. Um agente de relatório monta o documento com o que o sistema já registrou, você aprova o resultado e a nota sai junto.'
+};
+function tr(str){ return (PT_ON && PT[str]) || str; }
+
+/* Portuguese labels run longer than their English counterparts, so a few
+   node boxes need widening to keep the same breathing room around the text
+   (the English set never drops below 17px of slack, which is the floor these
+   figures are chosen against). Each widening here fits inside an existing
+   gap, so no downstream node has to move. The closing canvas is the one
+   exception: Crescimento is wide enough that the whole row is re-centred. */
+var PT_LAYOUT = {
+  scenarioLead:    { nodes:{ lead:{w:118}, cap:{w:118}, crm:{w:144}, sched:{w:136},
+                             resp:{x:668, w:182}, review:{w:144} } },
+  scenarioClient:  { nodes:{ client:{w:130}, intake:{w:106}, tasks:{w:148}, upd:{w:150} } },
+  scenarioService: { nodes:{ intake:{w:104}, sched:{w:134}, inv:{w:118}, rep:{w:184} } },
+  cta:       { viewBox:[640,240], nodes:{ growth:{x:69,w:132}, structure:{x:257}, intel:{x:431} } },
+  ctaMobile: { viewBox:[470,230], nodes:{ growth:{x:14,w:132}, structure:{x:172}, intel:{x:316},
+                                          bot:{x:150} }, hubs:{ h:{x:235} } }
+};
+function localiseSpecs(){
+  if(!PT_ON) return;
+  Object.keys(PT_LAYOUT).forEach(function(key){
+    var spec = SPECS[key], patch = PT_LAYOUT[key];
+    if(!spec) return;
+    if(patch.viewBox) spec.viewBox = patch.viewBox;
+    (spec.nodes || []).forEach(function(n){
+      var p = patch.nodes && patch.nodes[n.id];
+      if(!p) return;
+      if(p.x != null) n.x = p.x;
+      if(p.w != null) n.w = p.w;
+    });
+    (spec.hubs || []).forEach(function(h){
+      var p = patch.hubs && patch.hubs[h.id];
+      if(!p) return;
+      if(p.x != null) h.x = p.x;
+      if(p.y != null) h.y = p.y;
+    });
+  });
+}
 
 var SPECS = {};
 
@@ -513,20 +670,21 @@ SPECS.heroMobile = {
 SPECS.scenarioLead = {
   viewBox:[1200,420],
   nodes:[
-    {id:'lead',  label:'New Lead',             x:40,  cy:210, w:112, kind:'trigger', icon:'seed',  role:ROLES.lead},
-    {id:'qual',  label:'AI Qualification',     x:226, cy:210, w:168, kind:'ai',      icon:'ai',    role:ROLES.qual},
-    {id:'crm',   label:'CRM',                  x:468, cy:210, w:88,  kind:'std',     icon:'db',    role:ROLES.crm},
-    {id:'sched', label:'Scheduling',           x:650, cy:86,  w:124, kind:'std',     icon:'cal',   role:ROLES.sched},
-    {id:'resp',  label:'Personalized Response',x:650, cy:210, w:196, kind:'ai',      icon:'mail',  role:'Drafts a reply that refers to what they actually asked about.'},
-    {id:'pipe',  label:'Sales Pipeline',       x:650, cy:334, w:142, kind:'std',     icon:'chart', role:ROLES.pipe},
-    {id:'follow',label:'Follow-up',            x:888, cy:86,  w:118, kind:'std',     icon:'clock', role:'Chases the ones that go quiet, on a schedule you set once.'},
-    {id:'review',label:'Owner Review',         x:888, cy:334, w:134, kind:'human',   icon:'human', role:ROLES.review}
+    {id:'lead',  label:'New Lead',        x:16,  cy:210, w:112, kind:'trigger', icon:'seed',  role:ROLES.lead},
+    {id:'cap',   label:'Capture',         x:152, cy:210, w:112, kind:'std',     icon:'task',  role:'The details are recorded once, in a consistent shape, with nobody retyping them.'},
+    {id:'crm',   label:'CRM Update',      x:296, cy:210, w:136, kind:'std',     icon:'db',    role:ROLES.crm},
+    {id:'qual',  label:'AI Qualification',x:464, cy:210, w:160, kind:'ai',      icon:'ai',    role:ROLES.qual},
+    {id:'sched', label:'Scheduling',      x:692, cy:100, w:124, kind:'std',     icon:'cal',   role:ROLES.sched},
+    {id:'resp',  label:'Response Agent',  x:684, cy:320, w:150, kind:'ai',      icon:'mail',  role:'An agent that writes the reply, using what the system already knows about this lead. You send it, or edit it first.'},
+    {id:'review',label:'Owner Review',    x:908, cy:210, w:136, kind:'human',   icon:'human', role:ROLES.review},
+    {id:'follow',label:'Follow-up',       x:1076,cy:210, w:116, kind:'std',     icon:'clock', role:'Chases the ones that go quiet, on a schedule you set once.'}
   ],
-  hubs:[{id:'h1', x:604, y:210}],
+  hubs:[{id:'h1', x:658, y:210},{id:'h2', x:876, y:210}],
   links:[
-    {from:'lead',to:'qual',w:2.2},{from:'qual',to:'crm',w:2.15},{from:'crm',to:'h1',w:2.05},
-    {from:'h1',to:'resp',w:1.35},{from:'h1',to:'sched',w:1.3},{from:'h1',to:'pipe',w:1.5},
-    {from:'sched',to:'follow',w:1.05},{from:'pipe',to:'review',w:1.05}
+    {from:'lead',to:'cap',w:2.2},{from:'cap',to:'crm',w:2.15},{from:'crm',to:'qual',w:2.1},
+    {from:'qual',to:'h1',w:2.0},{from:'h1',to:'sched',w:1.35},{from:'h1',to:'resp',w:1.4},
+    {from:'sched',to:'h2',w:1.3},{from:'resp',to:'h2',w:1.35},
+    {from:'h2',to:'review',w:1.9},{from:'review',to:'follow',w:1.7}
   ]
 };
 
@@ -557,7 +715,7 @@ SPECS.scenarioService = {
     {id:'intake',label:'Intake',          x:172,  cy:210, w:94,  kind:'std',     icon:'task',  role:'Captured once, organized, and sent to the right place.'},
     {id:'sched', label:'Scheduling',      x:306,  cy:210, w:124, kind:'std',     icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
     {id:'svc',   label:'Service',         x:470,  cy:210, w:108, kind:'std',     icon:'users', role:'The work your team is there to do.'},
-    {id:'rep',   label:'AI Report Draft', x:658,  cy:96,  w:158, kind:'ai',      icon:'chart', role:'Builds the report from what the system already recorded.'},
+    {id:'rep',   label:'Reporting Agent', x:658,  cy:96,  w:162, kind:'ai',      icon:'chart', role:'An agent that pulls together the report from what the system already recorded.'},
     {id:'inv',   label:'Invoice',         x:658,  cy:324, w:110, kind:'std',     icon:'card',  role:'Raised from the work the system already recorded.'},
     {id:'appr',  label:'Approval',        x:856,  cy:96,  w:124, kind:'human',   icon:'human', role:'You review the finding before it goes to the client.'},
     {id:'deliv', label:'Client Delivery', x:1052, cy:210, w:142, kind:'std',     icon:'mail',  role:'Report and invoice reach the client together, on time.'}
@@ -587,6 +745,75 @@ SPECS.transform = {
     {from:'inbox',to:'sheet',w:1.6},{from:'inbox',to:'docs',w:1.6},
     {from:'sheet',to:'crm',w:1.5},{from:'docs',to:'crm',w:1.5},
     {from:'crm',to:'cal',w:1.4},{from:'crm',to:'inv',w:1.4}
+  ]
+};
+
+
+/* ---- the same three systems, recomposed for a phone ----------------
+   Not the desktop layout scaled down: at 1200 units across, its labels
+   land under 9px on a phone and the reader has to drag to see the end
+   of their own process. These run vertically, keep every node inside
+   the viewport, and hold the branch points as real branches rather
+   than flattening the system into a list. Meaning is identical. */
+SPECS.scenarioLeadMobile = {
+  viewBox:[360,600], vertical:true, linkMs:520,
+  nodes:[
+    {id:'lead',  label:'New Lead',        x:84,  cy:34,  w:150, kind:'trigger', icon:'seed',  role:ROLES.lead},
+    {id:'cap',   label:'Capture',         x:94,  cy:110, w:130, kind:'std',     icon:'task',  role:'The details are recorded once, in a consistent shape, with nobody retyping them.'},
+    {id:'crm',   label:'CRM Update',      x:84,  cy:186, w:152, kind:'std',     icon:'db',    role:ROLES.crm},
+    {id:'qual',  label:'AI Qualification',x:74,  cy:262, w:180, kind:'ai',      icon:'ai',    role:ROLES.qual},
+    {id:'sched', label:'Scheduling',      x:14,  cy:368, w:150, kind:'std',     icon:'cal',   role:ROLES.sched},
+    {id:'resp',  label:'Response Agent',  x:190, cy:368, w:156, kind:'ai',      icon:'mail',  role:'An agent that writes the reply, using what the system already knows about this lead. You send it, or edit it first.'},
+    {id:'review',label:'Owner Review',    x:90,  cy:490, w:155, kind:'human',   icon:'human', role:ROLES.review},
+    {id:'follow',label:'Follow-up',       x:100, cy:566, w:135, kind:'std',     icon:'clock', role:'Chases the ones that go quiet, on a schedule you set once.'}
+  ],
+  hubs:[{id:'h1', x:180, y:318},{id:'h2', x:180, y:440}],
+  links:[
+    {from:'lead',to:'cap',w:2.1},{from:'cap',to:'crm',w:2.05},{from:'crm',to:'qual',w:2.0},
+    {from:'qual',to:'h1',w:1.95},{from:'h1',to:'sched',w:1.4},{from:'h1',to:'resp',w:1.4},
+    {from:'sched',to:'h2',w:1.4},{from:'resp',to:'h2',w:1.4},
+    {from:'h2',to:'review',w:1.8},{from:'review',to:'follow',w:1.2}
+  ]
+};
+
+SPECS.scenarioClientMobile = {
+  viewBox:[360,534], vertical:true, linkMs:520,
+  nodes:[
+    {id:'client',label:'New Client',    x:84,  cy:34,  w:150, kind:'trigger', icon:'seed',  role:'A signed proposal or a closed deal. Onboarding starts itself.'},
+    {id:'intake',label:'Intake',        x:94,  cy:114, w:130, kind:'std',     icon:'task',  role:'One form, asked once, feeding everything after it.'},
+    {id:'docs',  label:'Documents',     x:14,  cy:216, w:150, kind:'std',     icon:'doc',   role:'Asks for what is missing and chases it until it arrives.'},
+    {id:'tasks', label:'Internal Tasks',x:196, cy:216, w:150, kind:'std',     icon:'task',  role:'Assigns the setup work to the right people with the right dates.'},
+    {id:'proc',  label:'AI Processing', x:80,  cy:340, w:170, kind:'ai',      icon:'ai',    role:'Reads what came in, pulls out what matters, and flags anything that looks wrong.'},
+    {id:'appr',  label:'Approval',      x:100, cy:412, w:130, kind:'human',   icon:'human', role:'A person confirms before anything reaches the client.'},
+    {id:'upd',   label:'Client Update', x:90,  cy:490, w:158, kind:'std',     icon:'mail',  role:'The client hears where things stand without having to ask.'}
+  ],
+  hubs:[{id:'h1', x:180, y:166},{id:'h2', x:180, y:288}],
+  links:[
+    {from:'client',to:'intake',w:2.1},{from:'intake',to:'h1',w:2.0},
+    {from:'h1',to:'docs',w:1.4},{from:'h1',to:'tasks',w:1.4},
+    {from:'docs',to:'h2',w:1.4},{from:'tasks',to:'h2',w:1.4},
+    {from:'h2',to:'proc',w:2.0},{from:'proc',to:'appr',w:1.9},{from:'appr',to:'upd',w:1.8}
+  ]
+};
+
+SPECS.scenarioServiceMobile = {
+  viewBox:[360,606], vertical:true, linkMs:520,
+  nodes:[
+    {id:'ref',   label:'Referral',        x:84,  cy:34,  w:150, kind:'trigger', icon:'seed',  role:'However the work arrives: a partner, a portal or a phone call.'},
+    {id:'intake',label:'Intake',          x:94,  cy:106, w:130, kind:'std',     icon:'task',  role:'Captured once, organized, and sent to the right place.'},
+    {id:'sched', label:'Scheduling',      x:90,  cy:178, w:140, kind:'std',     icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
+    {id:'svc',   label:'Service',         x:100, cy:250, w:126, kind:'std',     icon:'users', role:'The work your team is there to do.'},
+    {id:'rep',   label:'Reporting Agent', x:10,  cy:352, w:166, kind:'ai',      icon:'chart', role:'An agent that pulls together the report from what the system already recorded.'},
+    {id:'inv',   label:'Invoice',         x:216, cy:352, w:126, kind:'std',     icon:'card',  role:'Raised from the work the system already recorded.'},
+    {id:'appr',  label:'Approval',        x:10,  cy:436, w:140, kind:'human',   icon:'human', role:'You review the finding before it goes to the client.'},
+    {id:'deliv', label:'Client Delivery', x:90,  cy:562, w:158, kind:'std',     icon:'mail',  role:'Report and invoice reach the client together, on time.'}
+  ],
+  hubs:[{id:'h1', x:180, y:302},{id:'h2', x:180, y:504}],
+  links:[
+    {from:'ref',to:'intake',w:2.1},{from:'intake',to:'sched',w:2.05},{from:'sched',to:'svc',w:2.0},
+    {from:'svc',to:'h1',w:1.95},{from:'h1',to:'rep',w:1.4},{from:'h1',to:'inv',w:1.3},
+    {from:'rep',to:'appr',w:1.35},{from:'appr',to:'h2',w:1.3},{from:'inv',to:'h2',w:1.25},
+    {from:'h2',to:'deliv',w:1.9}
   ]
 };
 
@@ -1163,26 +1390,222 @@ function initScenarios(){
   var buttons = Array.prototype.slice.call(document.querySelectorAll('#scenarioTabs button'));
   var caption = document.getElementById('scenarioCaption');
   var LIST = [
-    { key:'scenarioLead',    cap:'An inquiry arrives and the system already knows what happens next: read it, record it, reply, book the time, and keep the pipeline current. You look at the ones worth your time.' },
-    { key:'scenarioClient',  cap:'Onboarding runs itself. Intake is collected once, documents are chased, setup tasks are assigned, and everything is read and checked. Nothing reaches the client until a person says so.' },
-    { key:'scenarioService', cap:'A referral arrives and the work runs through to delivery. The report is built from what the system already recorded, you approve the finding, and the invoice goes out with it.' }
+    { key:'scenarioLead',    cap:'An enquiry is captured and recorded in your CRM. AI works out what it needs, a response agent writes the reply, and scheduling is handled automatically. You review anything unusual before follow-up continues.' },
+    { key:'scenarioClient',  cap:'Onboarding runs on its own. Details are collected once, documents are requested, setup tasks are assigned, and AI checks what comes back. A person approves before anything reaches the client.' },
+    { key:'scenarioService', cap:'A referral moves through scheduling and delivery. A reporting agent builds the report from what the system already recorded, you approve the result, and the invoice goes out with it.' }
   ];
   var sc = null, current = -1;
 
+  /* Below this width the vertical recomposition is used. It is set above
+     the tablet breakpoint deliberately: the wide layout is 1200 units
+     across, so anywhere under roughly 900px its labels stop being
+     readable and the reader has to drag to reach the end. */
+  var NARROW = window.matchMedia('(max-width: 900px)');
+  function specFor(i){
+    var key = LIST[i].key;
+    return (NARROW.matches && SPECS[key + 'Mobile']) || SPECS[key];
+  }
+
+  function render(i){
+    buttons.forEach(function(b, bi){ b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
+    if(caption) caption.textContent = tr(LIST[i].cap);
+    if(sc) sc.stop();
+    sc = mount('scenarioCanvas', specFor(i));
+    if(REDUCED){ sc.settle(); sc.staticSignal(); return; }
+    sc.grow();
+  }
   function select(i){
     if(i === current) return;
     current = i;
-    buttons.forEach(function(b, bi){ b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
-    if(caption) caption.textContent = LIST[i].cap;
-    if(sc) sc.stop();
-    sc = mount('scenarioCanvas', SPECS[LIST[i].key]);
-    if(REDUCED){ sc.settle(); sc.staticSignal(); return; }
-    sc.grow();
+    render(i);
   }
   buttons.forEach(function(b, i){ b.addEventListener('click', function(){ select(i); }); });
   /* Only auto-select if the visitor has not already chosen. A late
      observer callback must never overrule an explicit click. */
   whenVisible(svg, function(){ if(current === -1) select(0); });
+
+  /* Crossing the breakpoint swaps in a different system, not a resized
+     one, so it has to be rebuilt rather than left to scale. */
+  var wasNarrow = NARROW.matches, rt;
+  function onResize(){
+    if(NARROW.matches === wasNarrow) return;
+    wasNarrow = NARROW.matches;
+    if(current !== -1) render(current);
+  }
+  if(NARROW.addEventListener) NARROW.addEventListener('change', onResize);
+  window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(onResize, 200); });
+}
+
+
+
+/* ============================================================
+   time calculator
+   The inputs are real form controls so the section stays keyboard
+   and screen reader accessible. The drawing between them is only a
+   connector: it is measured from the live layout rather than
+   authored, so it follows the inputs when they wrap or stack.
+   ============================================================ */
+var WORK_WEEKS = 46;   /* a year of the task, allowing for leave */
+var WORK_WEEK  = 40;   /* hours, for the "workweeks" translation */
+
+function initCalc(){
+  var root = document.getElementById('calc-widget');
+  if(!root) return;
+  var people  = document.getElementById('calcPeople');
+  var minutes = document.getElementById('calcMinutes');
+  var times   = document.getElementById('calcTimes');
+  var share   = document.getElementById('calcShare');
+  var flow    = document.getElementById('calcFlow');
+  var inputs  = document.getElementById('calcForm');
+  var out     = document.getElementById('calcOut');
+  if(!people || !minutes || !times || !share || !flow || !inputs || !out) return;
+
+  var fields = {
+    week:      document.getElementById('calcWeek'),
+    year:      document.getElementById('calcYear'),
+    yearWeeks: document.getElementById('calcYearWeeks'),
+    saved:     document.getElementById('calcSaved'),
+    savedWeeks:document.getElementById('calcSavedWeeks'),
+    shareOut:  document.getElementById('calcShareOut')
+  };
+
+  /* Clamp rather than reject. A number field can hold anything the
+     visitor types, and a silently wrong total is worse than a nudge. */
+  function val(el, min, max, fallback){
+    var n = parseFloat(el.value);
+    if(!isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+  function fmt(n){
+    return Math.round(n).toLocaleString(PT_ON ? 'pt-BR' : 'en-US');
+  }
+  function weeksLabel(hours){
+    var w = hours / WORK_WEEK;
+    if(w < 0.5) return tr('under half a workweek');
+    var n = Math.round(w);
+    if(n <= 1) return tr('about one workweek');
+    return tr('about {n} workweeks').replace('{n}', n);
+  }
+
+  function compute(){
+    var p = val(people, 1, 999, 1);
+    var m = val(minutes, 1, 480, 1);
+    var t = val(times, 1, 500, 1);
+    var sh = val(share, 0, 100, 0) / 100;
+
+    var hoursWeek = (p * m * t) / 60;
+    var hoursYear = hoursWeek * WORK_WEEKS;
+    var saved     = hoursYear * sh;
+
+    fields.week.textContent  = fmt(hoursWeek);
+    fields.year.textContent  = fmt(hoursYear);
+    fields.saved.textContent = fmt(saved);
+    fields.yearWeeks.textContent  = weeksLabel(hoursYear);
+    fields.savedWeeks.textContent = weeksLabel(saved);
+    fields.shareOut.textContent = Math.round(sh * 100) + '%';
+  }
+
+  /* ---- connectors ---------------------------------------------------
+     Three inputs converging into one outcome, drawn with the same
+     curve the system canvases use so it belongs to the same hand.
+     Geometry is measured from the live layout, so it follows the
+     fields when they wrap or stack. */
+  var pulses = [];
+  function centerX(elm, box){
+    var r = elm.getBoundingClientRect();
+    return Math.round(r.left - box.left + r.width / 2);
+  }
+  function geometry(){
+    var box = flow.getBoundingClientRect();
+    if(!box.width) return null;
+    var fieldEls = Array.prototype.slice.call(
+      inputs.querySelectorAll('.calc-field:not(.calc-field-range)'));
+    var lead = out.querySelector('.calc-result.is-lead') ||
+               out.querySelector('.calc-result');
+    if(!fieldEls.length || !lead) return null;
+    var w = Math.round(box.width);
+    var xs = fieldEls.map(function(e){ return centerX(e, box); });
+    /* When the inputs stack, every stem would start from the same point
+       and the drawing collapses into one vertical line. Fan the branches
+       across the width instead, so the figure still reads as several
+       things feeding one outcome. */
+    var distinct = xs.filter(function(v, i){ return xs.indexOf(v) === i; }).length;
+    if(distinct < xs.length && xs.length > 1){
+      var pad = Math.round(w * 0.14);
+      xs = xs.map(function(_, i){
+        return Math.round(pad + (w - pad * 2) * (i / (xs.length - 1)));
+      });
+    }
+    return {
+      w: w, h: Math.round(box.height),
+      xs: xs,
+      outX: centerX(lead, box),
+      junction: Math.round(box.height * 0.62)
+    };
+  }
+  function draw(){
+    var g = geometry();
+    if(!g) return;
+    flow.setAttribute('viewBox', '0 0 ' + g.w + ' ' + g.h);
+    flow.innerHTML = '';
+
+    var d = g.xs.map(function(x){
+      return linkPath([x, 0], [g.outX, g.junction], true);
+    }).join(' ');
+    /* and on from the junction to the outcome */
+    d += ' M' + g.outX + ' ' + g.junction + 'V' + g.h;
+    flow.appendChild(el('path', { d:d.trim() }));
+    flow.appendChild(el('circle', { cx:g.outX, cy:g.junction, r:2.6, fill:'#7D9469', opacity:'.8' }));
+
+    pulses = g.xs.map(function(x){
+      var p = el('path', { 'class':'calc-pulse',
+        d: linkPath([x, 0], [g.outX, g.junction], true) +
+           'V' + g.h });
+      flow.appendChild(p);
+      return p;
+    });
+  }
+
+  function pulse(){
+    if(REDUCED) return;
+    pulses.forEach(function(p, i){
+      var len = p.getTotalLength();
+      if(!len) return;
+      p.style.transition = 'none';
+      p.style.strokeDasharray = (len * 0.18) + ' ' + len;
+      p.style.strokeDashoffset = len * 0.18;
+      p.style.opacity = '.85';
+      /* force a reflow so the reset above is not folded into the change */
+      void p.getBoundingClientRect();
+      p.style.transition = 'stroke-dashoffset .62s cubic-bezier(.16,1,.3,1) ' +
+                           (i * 0.06) + 's, opacity .5s ease ' + (0.32 + i * 0.06) + 's';
+      p.style.strokeDashoffset = -len;
+      p.style.opacity = '0';
+    });
+  }
+
+  var rafId = null;
+  function update(){
+    compute();
+    if(rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(function(){ pulse(); });
+  }
+
+  inputs.addEventListener('input', update);
+  inputs.addEventListener('change', update);
+  inputs.addEventListener('submit', function(e){ e.preventDefault(); });
+
+  compute();
+  draw();
+  /* Fonts land after first paint and change the field widths, so measure
+     again once they have settled rather than drawing against a guess. */
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt); rt = setTimeout(draw, 180);
+  });
+  whenVisible(root, function(){ draw(); if(!REDUCED) pulse(); });
 }
 
 /* Branches leaning toward the button they converge on. */
@@ -1222,9 +1645,10 @@ function initCta(){
    never take the content layer down with it.
    ============================================================ */
 function boot(){
+  localiseSpecs();
   initReveals();
   try{ initSectionNav(); }catch(err){ console.error('[BOTANIA] section nav disabled:', err); }
-  [initHero, initTransform, initScenarios, initNamedCanvases, initCta].forEach(function(fn){
+  [initHero, initTransform, initScenarios, initNamedCanvases, initCta, initCalc].forEach(function(fn){
     try{ fn(); }catch(err){ console.error('[BOTANIA] canvas disabled:', err); }
   });
   try{

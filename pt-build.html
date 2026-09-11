@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,12 +9,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300..600&display=swap" rel="stylesheet">
 <script>document.documentElement.className+=' js';</script>
 <link rel="stylesheet" href="botania.css?v=54">
-<meta name="description" content="Tell BOTANIA how the work happens in your business and where it slows down or repeats. We read every message and reply personally.">
+<meta name="description" content="Conte para a BOTANIA como o trabalho acontece na sua empresa e onde ele trava ou se repete. Lemos cada mensagem e respondemos pessoalmente.">
 <link rel="alternate" hreflang="en" href="https://botaniaco.com/build.html">
 <link rel="alternate" hreflang="pt-BR" href="https://botaniaco.com/pt-build.html">
 <link rel="alternate" hreflang="x-default" href="https://botaniaco.com/build.html">
 <meta name="author" content="BOTANIA Co.">
-<title>Build Your System | BOTANIA</title>
+<title>Construa seu sistema | BOTANIA</title>
 </head>
 <body>
 
@@ -22,7 +22,7 @@
 
 <header>
   <div class="nav">
-    <a class="brand" href="index.html" aria-label="BOTANIA, home">
+    <a class="brand" href="pt.html" aria-label="BOTANIA, início">
       <svg viewBox="7 2 26 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <circle cx="20" cy="4" r="1.6" fill="currentColor"/>
         <line x1="20" y1="6" x2="20" y2="30" stroke="currentColor" stroke-width="1.1"/>
@@ -33,14 +33,14 @@
       </svg>
       <span class="wordmark">BOTANIA</span>
     </a>
-    <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="primaryNav" aria-label="Open menu">
+    <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="primaryNav" aria-label="Abrir menu">
       <span></span><span></span><span></span>
     </button>
-    <nav class="links" id="primaryNav" aria-label="Primary">
-      <a class="textlink" href="index.html">Home</a>
-      <a class="textlink" href="about.html">About</a>
-      <a class="textlink langlink" href="pt-build.html" hreflang="pt-BR" lang="pt-BR" aria-label="Ver este site em português">PT</a>
-      <a class="btn btn-solid btn-sm" href="build.html" aria-current="page">Build Your System</a>
+    <nav class="links" id="primaryNav" aria-label="Principal">
+      <a class="textlink" href="pt.html">Início</a>
+      <a class="textlink" href="pt-about.html">Sobre</a>
+      <a class="textlink langlink" href="build.html" hreflang="en" lang="en" aria-label="View this site in English">EN</a>
+      <a class="btn btn-solid btn-sm" href="pt-build.html" aria-current="page">Construa seu sistema</a>
     </nav>
   </div>
 </header>
@@ -49,87 +49,87 @@
 
   <section class="page-hero">
     <div class="wrap">
-      <span class="kicker reveal">Build your system</span>
-      <h1 class="reveal">Tell us about your business.</h1>
-      <p class="lede reveal">A few questions so the first conversation starts somewhere useful. Plain language is exactly right. There is nothing to prepare.</p>
+      <span class="kicker reveal">Construa seu sistema</span>
+      <h1 class="reveal">Conte sobre a sua empresa.</h1>
+      <p class="lede reveal">Algumas perguntas para a primeira conversa já começar em um ponto útil. Pode escrever do seu jeito. Não precisa preparar nada.</p>
     </div>
   </section>
 
   <section id="intake" style="padding-top:2.5rem;">
     <div class="wrap build-grid">
       <div class="reveal">
-        <form name="build-your-system" method="POST" data-netlify="true" netlify-honeypot="company-website" action="/thanks.html">
-          <input type="hidden" name="form-name" value="build-your-system">
+        <form name="construa-seu-sistema" method="POST" data-netlify="true" netlify-honeypot="company-website" action="/pt-thanks.html">
+          <input type="hidden" name="form-name" value="construa-seu-sistema">
           <p style="display:none;">
-            <label>Leave this empty: <input name="company-website"></label>
+            <label>Deixe em branco: <input name="company-website"></label>
           </p>
 
           <div class="form-field">
-            <label for="name">Your name</label>
+            <label for="name">Seu nome</label>
             <input id="name" name="name" type="text" autocomplete="name" required>
           </div>
           <div class="form-field">
-            <label for="email">Email</label>
+            <label for="email">E-mail</label>
             <input id="email" name="email" type="email" autocomplete="email" required>
           </div>
           <div class="form-field">
-            <label for="business">What does your business do?</label>
-            <span class="hint">One or two sentences is plenty.</span>
+            <label for="business">O que sua empresa faz?</label>
+            <span class="hint">Uma ou duas frases já bastam.</span>
             <input id="business" name="business" type="text" required>
           </div>
           <div class="form-field">
-            <label for="size">Roughly how many people?</label>
+            <label for="size">Mais ou menos quantas pessoas?</label>
             <select id="size" name="size">
-              <option value="">Select&hellip;</option>
-              <option>Just me</option>
-              <option>2 to 10</option>
-              <option>11 to 50</option>
-              <option>51 to 200</option>
+              <option value="">Selecione&hellip;</option>
+              <option>Só eu</option>
+              <option>2 a 10</option>
+              <option>11 a 50</option>
+              <option>51 a 200</option>
               <option>200+</option>
             </select>
           </div>
           <div class="form-field">
-            <label for="interest">What are you interested in?</label>
+            <label for="interest">O que você está buscando?</label>
             <select id="interest" name="interest">
-              <option value="">I&rsquo;m not sure yet</option>
-              <option>Workflow automation</option>
-              <option>AI agents</option>
-              <option>Connecting existing tools</option>
-              <option>Improving a specific process</option>
-              <option>A larger operational system</option>
+              <option value="">Ainda não sei</option>
+              <option>Automação de processos</option>
+              <option>Agentes de IA</option>
+              <option>Conectar ferramentas</option>
+              <option>Melhorar um processo específico</option>
+              <option>Um sistema operacional mais amplo</option>
             </select>
           </div>
           <div class="form-field">
-            <label for="manual">Where does the work slow down or repeat?</label>
-            <span class="hint">For example: entering the same information twice, chasing documents, waiting on an approval, rebuilding the same report, coordinating schedules, or recurring errors.</span>
+            <label for="manual">Onde o trabalho trava ou se repete?</label>
+            <span class="hint">Por exemplo: digitar a mesma informação mais de uma vez, correr atrás de documentos, esperar uma aprovação, refazer relatórios, coordenar agendas ou lidar com erros recorrentes.</span>
             <textarea id="manual" name="manual" required></textarea>
           </div>
           <div class="form-field">
-            <label for="tools">Which tools are involved?</label>
-            <span class="hint">CRM, calendar, accounting, documents, forms, e-signature, communication tools, or anything else involved in the process.</span>
+            <label for="tools">Quais ferramentas estão envolvidas?</label>
+            <span class="hint">CRM, agenda, contabilidade, documentos, formulários, assinatura eletrônica, ferramentas de comunicação ou qualquer outra ferramenta envolvida no processo.</span>
             <input id="tools" name="tools" type="text">
           </div>
 
-          <button type="submit" class="btn btn-solid">Send</button>
-          <p class="form-note">Please do not include passwords, API keys or other sensitive credentials in this form.</p>
-          <p class="form-note">We read every message and reply personally.</p>
+          <button type="submit" class="btn btn-solid">Enviar</button>
+          <p class="form-note">Não inclua senhas, chaves de API ou outras credenciais sensíveis neste formulário.</p>
+          <p class="form-note">Lemos cada mensagem e respondemos pessoalmente.</p>
         </form>
       </div>
 
       <aside class="build-aside reveal">
-        <h3>Prefer to just talk?</h3>
-        <p>Book a 30-minute conversation. No preparation needed.</p>
-        <a href="https://calendar.app.google/edzRvSrzD8XNm4Jw9" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Book a call</a>
+        <h3>Prefere conversar?</h3>
+        <p>Agende uma conversa de 30 minutos. Não precisa preparar nada.</p>
+        <a href="https://calendar.app.google/edzRvSrzD8XNm4Jw9" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Agendar conversa</a>
 
-        <h3 style="margin-top:2.25rem;">What happens next</h3>
+        <h3 style="margin-top:2.25rem;">O que acontece depois</h3>
         <ul>
-          <li>We read what you sent and come back with any useful questions.</li>
-          <li>We talk through how the work happens today and where it repeats, waits or requires manual follow-up.</li>
-          <li>We determine whether automation, integrations or AI can help.</li>
-          <li>If there is a good opportunity, we show you what the system could look like before anything is built.</li>
+          <li>Lemos o que você enviou e voltamos com perguntas, se necessário.</li>
+          <li>Conversamos sobre como o trabalho acontece hoje e onde ele se repete, trava ou exige acompanhamento manual.</li>
+          <li>Avaliamos se automação, integrações ou IA podem ajudar.</li>
+          <li>Se houver uma boa oportunidade, mostramos como o sistema pode funcionar antes de desenvolver qualquer coisa.</li>
         </ul>
 
-        <p style="margin:0;">Or email <a class="textlink-inline" href="mailto:hello@botaniaco.net">hello@botaniaco.net</a></p>
+        <p style="margin:0;">Ou escreva para <a class="textlink-inline" href="mailto:hello@botaniaco.net">hello@botaniaco.net</a></p>
       </aside>
     </div>
   </section>
@@ -150,15 +150,15 @@
           <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
         </svg>
       </span>
-      <span class="meta">Intuitive Intelligence for Modern Business</span>
+      <span class="meta">Inteligência Intuitiva para Negócios Modernos</span>
       <span class="meta legal">&copy; 2026 BOTANIA Co.</span>
     </div>
-    <nav class="footer-nav" aria-label="Footer">
-      <a href="index.html">Home</a>
-      <a href="about.html">About</a>
-      <a href="build.html">Build Your System</a>
-      <a href="pt-build.html" hreflang="pt-BR" lang="pt-BR" aria-label="Ver este site em português">PT</a>
-      <span class="footer-legal"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="mailto:hello@botaniaco.net">hello@botaniaco.net</a></span>
+    <nav class="footer-nav" aria-label="Rodapé">
+      <a href="pt.html">Início</a>
+      <a href="pt-about.html">Sobre</a>
+      <a href="pt-build.html">Construa seu sistema</a>
+      <a href="build.html" hreflang="en" lang="en" aria-label="View this site in English">EN</a>
+      <span class="footer-legal"><a href="pt-privacy.html">Privacidade</a><a href="pt-terms.html">Termos de Uso</a><a href="mailto:hello@botaniaco.net">hello@botaniaco.net</a></span>
     </nav>
   </div>
 </footer>
