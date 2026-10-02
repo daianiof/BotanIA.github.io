@@ -1,4 +1,4 @@
-# BOTANIA
+# BOTAN.IA
 # Everything public is crawlable. CSS, JS, fonts and images must stay
 # reachable or Google cannot render the page as a visitor sees it.
 
