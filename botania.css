@@ -1571,3 +1571,48 @@ footer .meta{font-size:var(--eyebrow);}
 @media (max-width:800px){
   nav.links a.textlink{font-size:.9375rem;}
 }
+
+/* ============================================================
+   case study teaser (home)
+   The project at a glance: what it was, where it runs, and the
+   card it started from, saved to both address books.
+   ============================================================ */
+.cs-teaser{
+  display:grid; grid-template-columns:minmax(0,1fr); gap:var(--s-6);
+  background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-1); padding:var(--s-6);
+}
+@media (min-width:1024px){
+  .cs-teaser{grid-template-columns:repeat(12,minmax(0,1fr)); column-gap:var(--col-gap); align-items:center; padding:var(--s-7);}
+  .cs-teaser-copy{grid-column:1 / span 5;}
+  .cs-teaser-visual{grid-column:6 / span 7;}
+}
+.cs-teaser-facts{display:grid; gap:var(--s-4); margin-bottom:var(--s-6);}
+.cs-teaser-facts dt{
+  font-family:var(--font-mono-ui); font-size:var(--meta); letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase; color:var(--blue-ink); margin-bottom:var(--s-1);
+}
+.cs-teaser-facts dd{color:var(--ink-2);}
+.cs-teaser-visual{margin:0; padding:var(--s-6); border-radius:var(--radius); background:var(--surface-cool);}
+.cs-teaser-flow{display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:center; gap:var(--s-5);}
+.cs-teaser-flow img{width:8.5rem; height:auto; border-radius:var(--radius); box-shadow:var(--shadow-2);}
+.cs-teaser-arrow{color:var(--blue);}
+.cs-teaser-recs{display:grid; gap:var(--s-3);}
+.cs-teaser-rec{
+  display:grid; gap:2px; padding:var(--s-3) var(--s-4);
+  background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius);
+}
+.cs-teaser-app{font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:.06em; color:var(--blue-ink);}
+.cs-teaser-rec b{font-family:var(--font-display); font-weight:500; font-size:var(--body-lg); line-height:var(--lh-title); color:var(--ink);}
+.cs-teaser-rec > span:last-child{font-size:var(--body-sm); color:var(--ink-2);}
+.cs-teaser-visual figcaption{margin-top:var(--s-4); font-size:var(--body-sm); color:var(--ink-3);}
+@media (max-width:767px){
+  .cs-teaser{padding:var(--s-5);}
+  .cs-teaser-visual{padding:var(--s-4);}
+  /* stacked: the card, then where it went */
+  .cs-teaser-flow{grid-template-columns:minmax(0,1fr); justify-items:center; gap:var(--s-3);}
+  .cs-teaser-flow img{width:7rem;}
+  .cs-teaser-arrow{transform:rotate(90deg);}
+  .cs-teaser-recs{width:100%;}
+  .cs-teaser .btn{width:100%;}
+}

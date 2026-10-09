@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#F8FAFC">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'%3E%3Ccircle cx='20' cy='4' r='2.4' fill='%235E7BD8'/%3E%3Cline x1='20' y1='7' x2='20' y2='34' stroke='%2313243A' stroke-width='2'/%3E%3Cpath d='M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z' stroke='%2313243A' stroke-width='2' fill='none'/%3E%3Cpath d='M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z' stroke='%2313243A' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Space Grotesk (headings), IBM Plex Sans (reading), IBM Plex Mono (labels); Jost only for the wordmark. All SIL OFL 1.1. -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300&text=BOTAN.I&display=swap" rel="stylesheet">
+<script>document.documentElement.className+=' js';</script>
+<link rel="stylesheet" href="botania.css?v=67">
+<link rel="stylesheet" href="showcase.css?v=2">
+<meta name="description" content="Um assistente no WhatsApp que cadastra contatos no Google Contatos e no Microsoft Outlook a partir da foto de um cartão de visita e aponta as diferenças entre as duas listas. O cliente aprova cada alteração antes de ela ser salva.">
+<meta name="author" content="BOTANIA Co.">
+<title>Estudo de caso: sincronização de contatos | BOTAN.IA</title>
+<link rel="canonical" href="https://botaniaco.com/pt-contact-sync.html">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<link rel="alternate" hreflang="en" href="https://botaniaco.com/contact-sync.html">
+<link rel="alternate" hreflang="pt-BR" href="https://botaniaco.com/pt-contact-sync.html">
+<link rel="alternate" hreflang="x-default" href="https://botaniaco.com/contact-sync.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="BOTAN.IA">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:url" content="https://botaniaco.com/pt-contact-sync.html">
+<meta property="og:title" content="Estudo de caso: sincronização de contatos | BOTAN.IA">
+<meta property="og:description" content="Um assistente no WhatsApp que cadastra contatos no Google Contatos e no Microsoft Outlook a partir da foto de um cartão de visita e aponta as diferenças entre as duas listas. O cliente aprova cada alteração antes de ela ser salva.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Estudo de caso: sincronização de contatos | BOTAN.IA">
+<meta name="twitter:description" content="Um assistente no WhatsApp que cadastra contatos no Google Contatos e no Microsoft Outlook a partir da foto de um cartão de visita e aponta as diferenças entre as duas listas. O cliente aprova cada alteração antes de ela ser salva.">
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <a aria-label="BOTAN.IA, início" class="brand" href="/pt">
+      <svg viewBox="7 2 26 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="markH" gradientUnits="userSpaceOnUse" x1="20" y1="31" x2="20" y2="2"><stop offset="0" stop-color="#13243A"/><stop offset=".6" stop-color="#22395C"/><stop offset="1" stop-color="#5E7BD8"/></linearGradient></defs>
+        <circle cx="20" cy="4" r="1.6" fill="#5E7BD8"/>
+        <line x1="20" y1="6" x2="20" y2="30" stroke="url(#markH)" stroke-width="1.1"/>
+        <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="url(#markH)" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="url(#markH)" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="url(#markH)" stroke-width="1.1" stroke-linejoin="round"/>
+        <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="url(#markH)" stroke-width="1.1" stroke-linejoin="round"/>
+      </svg>
+      <span class="wordmark">BOTAN<span class="ia">.IA</span></span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="primaryNav" aria-label="Abrir menu">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="links" id="primaryNav" aria-label="Principal">
+      <a class="textlink" href="/pt">Início</a>
+      <a class="textlink" href="/pt-about">Sobre</a>
+      <a aria-current="page" class="textlink" href="/pt-contact-sync">Estudo de caso</a>
+      <a aria-label="View this site in English" class="textlink langlink" href="/contact-sync" hreflang="en" lang="en">EN</a>
+      <a class="btn btn-solid btn-sm" href="/pt-build">Construa seu sistema</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="page-hero cs-hero">
+    <div class="wrap">
+      <span class="kicker reveal">Estudo de caso</span>
+      <h1 class="reveal">Os contatos de um cliente, iguais no Google e no Outlook.</h1>
+      <p class="lede reveal">Um assistente no WhatsApp que cadastra contatos no Google Contatos e no Microsoft Outlook a partir da foto de um cartão de visita e aponta as diferenças entre as duas listas. O cliente aprova cada alteração antes de ela ser salva.</p>
+      <dl class="cs-facts reveal">
+        <div><dt>Feito para</dt><dd>Um cliente</dd></div>
+        <div><dt>Funciona no</dt><dd>WhatsApp</dd></div>
+        <div><dt>Conecta</dt><dd>Google Contatos e Microsoft Outlook</dd></div>
+        <div><dt>Imagens</dt><dd>Demonstração com o cartão de visita da fundadora e contatos de teste fictícios. Conversas traduzidas do inglês, com dados pessoais ocultos.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="cs-deck" data-deck aria-label="Estudo de caso">
+    <div class="wrap">
+      <div class="cs-bar">
+        <div class="cs-tabs" aria-label="Partes do estudo de caso">
+          <button type="button" class="cs-tab" id="tab-problem" aria-selected="true">Problema</button>
+          <button type="button" class="cs-tab" id="tab-solution" aria-selected="false">Solução</button>
+          <button type="button" class="cs-tab" id="tab-how" aria-selected="false">Como funciona</button>
+          <button type="button" class="cs-tab" id="tab-saved" aria-selected="false">Depois de salvar</button>
+          <button type="button" class="cs-tab" id="tab-existing" aria-selected="false">Contatos existentes</button>
+          <button type="button" class="cs-tab" id="tab-test" aria-selected="false">Resultado</button>
+        </div>
+        <div class="cs-nav">
+          <span class="cs-count" aria-live="polite">1 / 6</span>
+          <button type="button" class="cs-arrow" data-deck-prev aria-label="Slide anterior"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M9 3L5 7l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="cs-arrow" data-deck-next aria-label="Próximo slide"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="cs-slides">
+      <article class="cs-slide" id="slide-problem" aria-label="1 de 6: O problema">
+        <div class="cs-copy reveal">
+          <span class="eyebrow">O problema</span>
+          <h2>Cada contato novo era digitado duas vezes.</h2>
+          <p>Um cliente mantinha os contatos no Google Contatos e no Microsoft Outlook. Por isso, cada cartão de visita novo tinha que ser cadastrado à mão nas duas contas.</p>
+          <p>Com o tempo, as duas listas deixaram de bater. Um cargo mudava em uma e não na outra, ou um e-mail ficava salvo em só uma delas, e nem sempre dava para saber qual versão estava certa.</p>
+          
+        </div>
+        <div class="cs-visual reveal">
+          <div class="cs-panel">
+            <div class="cs-records">
+              <div class="cs-book">
+                <div class="cs-book-head">Google Contatos</div>
+                <div class="cs-rec"><b>Jennifer Park</b><span>Executive Director</span></div>
+                <div class="cs-rec"><b>Kevin Nakamura</b><span class="is-empty">Sem e-mail</span><em class="cs-flag">Faltando</em></div>
+              </div>
+              <div class="cs-book">
+                <div class="cs-book-head">Outlook</div>
+                <div class="cs-rec"><b>Jennifer Park</b><span>Program Manager</span><em class="cs-flag">Diferente</em></div>
+                <div class="cs-rec"><b>Kevin Nakamura</b><span>E-mail cadastrado</span></div>
+              </div>
+            </div>
+            <p class="cs-note">Ilustração. Os nomes e dados vêm dos contatos de teste fictícios.</p>
+          </div>
+        </div>
+      </article>
+      <article class="cs-slide" id="slide-solution" aria-label="2 de 6: A solução">
+        <div class="cs-copy reveal">
+          <span class="eyebrow">A solução</span>
+          <h2>Envie a foto, aprove, e o contato é salvo nos dois.</h2>
+          <p>O assistente funciona no WhatsApp, então não há aplicativo novo para aprender. Ele lê o cartão, verifica se a pessoa já está em alguma das listas e pergunta antes de salvar qualquer coisa.</p>
+          
+        </div>
+        <div class="cs-visual reveal">
+          <div class="cs-panel cs-flow">
+            <div class="process pline">
+              <span class="process-rail" aria-hidden="true"></span>
+              <ol class="process-list" aria-label="Como um contato novo é cadastrado">
+                <li><h3>Envie a foto</h3><p>Uma foto do cartão de visita, tirada no celular.</p></li>
+                <li><h3>Revise</h3><p>O assistente mostra o que leu e aponta o que parece errado.</p></li>
+                <li class="pl-human"><h3>Aprove</h3><p>Nada é salvo até o cliente responder que sim.</p></li>
+                <li><h3>Salvo nos dois</h3><p>O contato entra no Google Contatos e no Outlook.</p></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </article>
+      <article class="cs-slide" id="slide-how" aria-label="3 de 6: Como funciona">
+        <div class="cs-copy reveal">
+          <span class="eyebrow">Como funciona</span>
+          <h2>Um contato novo pede só uma foto e um sim.</h2>
+          <p>O cliente envia a foto do cartão. O assistente responde com os dados que leu e pergunta antes de salvar.</p>
+          <dl class="cs-keys"><div><dt>Foto</dt><dd>O cartão, enviado com um pedido curto.</dd></div><div><dt>Revisão</dt><dd>Nome, cargo, e-mail, telefone e site, mais um aviso de que o e-mail termina em .net e o site, em .com.</dd></div><div><dt class="is-human">Aprovação</dt><dd>O cliente responde que sim e informa o nome da empresa.</dd></div></dl>
+        </div>
+        <div class="cs-visual reveal">
+          <figure class="cs-shot cs-chatfig">
+            <div class="cs-chat">
+              <div class="cs-chat-head"><span><span class="cs-chat-app">WhatsApp</span> BOTAN.IA_ContactSyncAgent</span><em class="cs-flag">Tradução</em></div>
+              <div class="cs-chat-body" tabindex="0" role="region" aria-label="Conversa traduzida do inglês">
+                <div class="cs-turn from-user"><span class="cs-chat-tag">Foto</span><div class="cs-msg cs-hl"><img src="images/contact-sync/card-photo.jpg" width="266" height="330" alt="Foto do cartão de visita de Daiani Farias, fundadora da BOTAN.IA. Telefone oculto." loading="lazy" decoding="async"><p>Escaneie este cartão de visita e adicione o contato ao Google e ao Outlook</p><time>9:56</time></div></div><div class="cs-turn from-bot"><span class="cs-chat-tag">Revisão</span><div class="cs-msg cs-hl"><p><b>Contato novo.</b> Não encontrei esse contato no Google nem no Outlook.</p><ul><li><b>Nome:</b> Daiani Farias</li><li><b>Cargo:</b> Founder</li><li><b>E-mail:</b> daiani.farias@botaniaco.net</li><li><b>Telefone:</b> <span class="cs-hidden">oculto</span></li><li><b>Site:</b> botaniaco.com</li><li><b>Empresa:</b> não aparece no cartão, então vou deixar em branco.</li></ul><p>O domínio do e-mail (.net) é diferente do site (.com). Vou salvar o e-mail como está no cartão.</p><p>Posso adicioná-la ao Google e ao Outlook? Se quiser, me passe também o nome da empresa para incluir.</p><time>9:56</time></div></div><div class="cs-turn from-user"><span class="cs-chat-tag is-human">Aprovação</span><div class="cs-msg cs-hl is-human"><p>Sim. O nome da empresa é BOTAN.IA</p><time>9:57</time></div></div>
+              </div>
+            </div>
+            <figcaption>Tradução da conversa original, feita em inglês. Demonstração com o cartão de visita da própria fundadora. Telefone oculto. <a class="textlink-inline" href="images/contact-sync/capture.jpg" target="_blank" rel="noopener">Ver a imagem original, em inglês<span class="vh"> (abre em uma nova aba)</span></a></figcaption>
+          </figure>
+        </div>
+      </article>
+      <article class="cs-slide" id="slide-saved" aria-label="4 de 6: Depois de salvar">
+        <div class="cs-copy reveal">
+          <span class="eyebrow">Depois de salvar</span>
+          <h2>Depois, ele mostra o que foi salvo em cada lugar.</h2>
+          <p>A confirmação lista os dados salvos no Google Contatos e no Outlook. Também avisa sobre informações que o Google trouxe de um perfil já existente, que o assistente não adicionou, e repete o lembrete para conferir o domínio do e-mail.</p>
+          
+        </div>
+        <div class="cs-visual reveal">
+          <figure class="cs-shot cs-chatfig">
+            <div class="cs-chat">
+              <div class="cs-chat-head"><span><span class="cs-chat-app">WhatsApp</span> BOTAN.IA_ContactSyncAgent</span><em class="cs-flag">Tradução</em></div>
+              <div class="cs-chat-body" tabindex="0" role="region" aria-label="Conversa traduzida do inglês">
+                <div class="cs-turn from-bot"><div class="cs-msg"><p>Daiani Farias foi salva no Google Contatos e no Outlook.</p><div class="cs-hl-block"><p><b>Google Contatos</b></p><ul><li>Salvos: nome, Founder, BOTAN.IA, daiani.farias@botaniaco.net e <span class="cs-hidden">oculto</span>.</li><li>O site aparece só como domínio da empresa (botaniaco.com). Não há um campo separado para site no resultado.</li><li>O Google vinculou o contato a um perfil do Google que já existia e trouxe dados que eu não adicionei: um endereço do Gmail (<span class="cs-hidden">oculto</span>), uma data de aniversário (<span class="cs-hidden">oculto</span>) e o gênero.</li></ul></div><div class="cs-hl-block"><p><b>Outlook</b></p><ul><li>Salvos: nome, Founder, BOTAN.IA, daiani.farias@botaniaco.net, <span class="cs-hidden">oculto</span> e botaniaco.com.</li></ul></div><p>Verifiquei os dois sistemas antes e não encontrei nenhum registro igual. O domínio do e-mail no cartão (.net) é diferente do site (.com), então confira qual está certo antes de mandar um e-mail para ela.</p><time>9:57</time></div></div>
+              </div>
+            </div>
+            <figcaption>Tradução da mensagem original, em inglês. Telefone, e-mail pessoal e data de aniversário ocultos. <a class="textlink-inline" href="images/contact-sync/saved.jpg" target="_blank" rel="noopener">Ver a imagem original, em inglês<span class="vh"> (abre em uma nova aba)</span></a></figcaption>
+          </figure>
+        </div>
+      </article>
+      <article class="cs-slide" id="slide-existing" aria-label="5 de 6: Contatos existentes">
+        <div class="cs-copy reveal">
+          <span class="eyebrow">Contatos existentes</span>
+          <h2>Cada alteração espera um sim e é conferida.</h2>
+          <p>O assistente também compara as duas listas e encontra dados que faltam ou que não batem. Antes de mudar qualquer coisa, ele lê as duas, lista as alterações que pretende fazer e espera. Depois da aprovação, lê as duas de novo e informa o que realmente mudou.</p>
+          <p>Uma lição dos testes: uma ferramenta genérica de atualização apagava campos que ninguém tinha pedido para alterar. Trocamos por ferramentas menores, que mudam um campo de cada vez, como o e-mail ou o telefone.</p>
+          <dl class="cs-keys"><div><dt>Proposta</dt><dd>O plano, antes de qualquer gravação.</dd></div><div><dt class="is-human">Aprovado</dt><dd>Uma resposta de uma palavra, dada por uma pessoa.</dd></div><div><dt>Conferido</dt><dd>As duas listas lidas de novo para confirmar as alterações.</dd></div></dl>
+        </div>
+        <div class="cs-visual reveal">
+          <figure class="cs-shot cs-chatfig">
+            <div class="cs-chat">
+              <div class="cs-chat-head"><span><span class="cs-chat-app">WhatsApp</span> BOTAN.IA_ContactSyncAgent</span><em class="cs-flag">Tradução</em></div>
+              <div class="cs-chat-body" tabindex="0" role="region" aria-label="Conversa traduzida do inglês">
+                <div class="cs-turn from-bot"><span class="cs-chat-tag">Proposta</span><div class="cs-msg cs-hl"><p><b>Só o plano. Nada foi gravado ainda.</b> Li os dois sistemas primeiro. O Google tem 26 contatos e o Outlook, 26.</p><p><b>O que encontrei</b></p><ul><li><b>Jennifer Park (Google):</b> continua sem nome. O registro é <span class="cs-hidden">oculto</span> e tem e-mail, telefone, <span class="cs-hidden">oculto</span> e Executive Director.</li><li><b>Seus 15 nomes:</b> cada um corresponde a exatamente um registro no Google e um no Outlook, então não há ambiguidade.</li><li><b>E-mails:</b> os 15 estão vazios nos dois sistemas. Nada será sobrescrito.</li><li><b>Jennifer no Outlook:</b> o cargo já é Executive Director, então não é preciso mudar nada lá.</li></ul><p><b>Gravações (31 chamadas)</b></p><ol><li><b>GoogleSetName:</b> Jennifer Park (nome: Jennifer, sobrenome: Park).</li><li><b>GoogleSetEmail, 15 chamadas:</b> uma por registro, pelo ID do Google.</li><li><b>OutlookSetEmail, 15 chamadas:</b> uma por registro, pelo ID do Outlook.</li></ol><p class="cs-more">Priya Nair, Carlos Mendo… Ler mais</p><time>11:10</time></div></div><div class="cs-turn from-user"><span class="cs-chat-tag is-human">Aprovado</span><div class="cs-msg cs-hl is-human"><p>Aprovado.</p><time>11:12</time></div></div><div class="cs-turn from-bot"><span class="cs-chat-tag">Conferido</span><div class="cs-msg cs-hl"><p><b>As duas tarefas foram concluídas e confirmadas por uma última leitura dos dois sistemas.</b> Cometi alguns erros no caminho, listados abaixo.</p><p><b>1. Jennifer Park (Google):</b> o nome foi definido e se manteve. E-mail, telefone, empresa e cargo não mudaram.</p><p><b>2. E-mails dos 15 contatos:</b> agora cada um tem o e-mail que você indicou, no Google e no Outlook.</p><ul><li>Priya Nair</li><li>Carlos Mendoza</li><li>Yuki Tanaka</li><li>Maria Santos</li></ul><p class="cs-more">[…]</p></div></div>
+              </div>
+            </div>
+            <figcaption>Teste com contatos fictícios. Tradução resumida da conversa original, em inglês. ID do registro e nome da organização ocultos. <a class="textlink-inline" href="images/contact-sync/approve.jpg" target="_blank" rel="noopener">Ver a imagem original, em inglês<span class="vh"> (abre em uma nova aba)</span></a></figcaption>
+          </figure>
+        </div>
+      </article>
+      <article class="cs-slide" id="slide-test" aria-label="6 de 6: Resultado do teste">
+        <div class="cs-copy reveal">
+          <span class="eyebrow">Resultado do teste</span>
+          <h2>No teste final, 26 contatos em cada lista.</h2>
+          <p>O teste usou contatos fictícios, não reais. Na última rodada, o assistente informou que não havia duplicados nem registros em branco. Isso mostra como o sistema se comportou nos testes, não resultados do uso no dia a dia.</p>
+          <div class="cs-cta">
+            <h3>Você copia as mesmas informações de um sistema para outro à mão?</h3>
+            <p>Vamos conversar sobre como conectar esses sistemas, com você aprovando cada alteração.</p>
+            <div class="cta-actions">
+              <a class="btn btn-solid" href="https://calendar.app.google/edzRvSrzD8XNm4Jw9" target="_blank" rel="noopener noreferrer">Agende uma conversa<span class="vh"> (abre em uma nova aba)</span></a>
+              <a class="btn btn-ghost" href="/pt-build">Construa seu sistema</a>
+            </div>
+          </div>
+        </div>
+        <div class="cs-visual reveal">
+          <div class="cs-panel">
+            <p class="cs-result-head">Rodada final de teste, dados fictícios</p>
+            <dl class="cs-stats">
+              <div><dt>Contatos no Google Contatos</dt><dd>26</dd></div>
+              <div><dt>Contatos no Outlook</dt><dd>26</dd></div>
+              <div><dt>Duplicados informados</dt><dd>Nenhum</dd></div>
+              <div><dt>Registros em branco informados</dt><dd>Nenhum</dd></div>
+            </dl>
+            <p class="cs-note">Dados de teste fictícios. Não mede o uso real.</p>
+          </div>
+        </div>
+      </article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-brandline">
+        <span class="wordmark">BOTAN<span class="ia">.IA</span></span>
+        <svg viewBox="7 2 26 29" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs><linearGradient id="markF" gradientUnits="userSpaceOnUse" x1="20" y1="31" x2="20" y2="2"><stop offset="0" stop-color="#13243A"/><stop offset=".6" stop-color="#22395C"/><stop offset="1" stop-color="#5E7BD8"/></linearGradient></defs>
+          <circle cx="20" cy="4" r="1.6" fill="#5E7BD8"/>
+          <line x1="20" y1="6" x2="20" y2="30" stroke="url(#markF)" stroke-width="1.1"/>
+          <path d="M20 12 C15 12 11 16 8 19 C13 20 17 18 20 12Z" stroke="url(#markF)" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M20 12 C25 12 29 16 32 19 C27 20 23 18 20 12Z" stroke="url(#markF)" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M20 12 C17 14 15 17 14 21 C18 20 20 17 20 12Z" stroke="url(#markF)" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M20 12 C23 14 25 17 26 21 C22 20 20 17 20 12Z" stroke="url(#markF)" stroke-width="1.1" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="meta">Assistência Inteligente para Negócios Modernos</span>
+      <span class="meta legal">&copy; 2026 BOTANIA Co.</span>
+    </div>
+    <nav class="footer-nav" aria-label="Rodapé">
+      <a href="/pt">Início</a>
+      <a href="/pt-about">Sobre</a>
+      <a href="/pt-contact-sync">Estudo de caso</a>
+      <a href="/pt-build">Construa seu sistema</a>
+      <a aria-label="View this site in English" href="/" hreflang="en" lang="en">EN</a>
+      <span class="footer-legal"><a href="/pt-privacy">Privacidade</a><a href="/pt-terms">Termos de Uso</a><a href="mailto:hello@botaniaco.net">hello@botaniaco.net</a></span>
+    </nav>
+  </div>
+</footer>
+
+<script src="botania.js?v=67"></script>
+<script src="showcase.js?v=2"></script>
+</body>
+</html>

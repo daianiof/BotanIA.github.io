@@ -1,0 +1,241 @@
+/* ============================================================
+   CASE STUDY SHOWCASE
+   Built on botania.css: the same grid, tokens, type and components.
+   Phones and tablets read the story as stacked sections. From
+   1024px it becomes a slide gallery: one slide at a time, a tab
+   per slide, previous and next, and a count (showcase.js).
+   ============================================================ */
+
+.cs-hero{padding-bottom:var(--s-7);}
+.cs-hero h1{max-width:22ch;}
+
+/* the project in four facts */
+.cs-facts{
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--s-5);
+  margin-top:var(--s-7); padding-top:var(--s-5); border-top:1px solid var(--line-2);
+}
+.cs-facts dt{
+  font-family:var(--font-mono-ui); font-size:var(--meta); letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase; color:var(--blue-ink); margin-bottom:var(--s-1);
+}
+.cs-facts dd{font-size:var(--body-sm); line-height:var(--lh-body-sm); color:var(--ink-2);}
+@media (max-width:1023px){ .cs-facts{grid-template-columns:repeat(2,minmax(0,1fr));} }
+
+/* ---- a slide: words in columns 1 to 5, evidence in 6 to 12 ---- */
+.cs-deck{--pad-top:0px;}
+.cs-slide{display:grid; grid-template-columns:minmax(0,1fr); row-gap:var(--space-head); min-width:0;}
+.cs-slide + .cs-slide{margin-top:var(--space-section); padding-top:var(--space-section); border-top:1px solid var(--line);}
+.cs-copy h2{text-wrap:balance; margin-bottom:var(--gap-copy);}
+.cs-copy p{color:var(--ink-2); max-width:var(--measure);}
+.cs-copy p + p{margin-top:var(--s-3);}
+.cs-visual{min-width:0;}
+@media (min-width:1024px){
+  .cs-slide{grid-template-columns:repeat(12,minmax(0,1fr)); column-gap:var(--col-gap); align-items:center;}
+  .cs-copy{grid-column:1 / span 5;}
+  .cs-visual{grid-column:6 / span 7;}
+}
+
+/* the words on a screenshot's highlights, explained beside it */
+.cs-keys{display:grid; gap:var(--s-3); margin-top:var(--s-5);}
+.cs-keys div{display:grid; grid-template-columns:7.5rem minmax(0,1fr); gap:var(--s-4); align-items:baseline;}
+.cs-keys dt{
+  font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--blue-ink);
+}
+.cs-keys dt.is-human{color:var(--human-ink);}
+.cs-keys dd{font-size:var(--body-sm); line-height:var(--lh-body-sm); color:var(--ink-2);}
+
+.cs-cta{margin-top:var(--s-6); padding-top:var(--s-5); border-top:1px solid var(--line-2);}
+.cs-cta h3{margin-bottom:var(--s-2);}
+.cs-cta .cta-actions{justify-content:flex-start; margin-top:var(--s-5);}
+
+/* ---- panels for the drawn visuals ---- */
+.cs-panel{
+  background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-1); padding:var(--s-6);
+}
+.cs-note{margin-top:var(--s-4); font-size:var(--body-sm); line-height:var(--lh-body-sm); color:var(--ink-3);}
+
+/* the problem: one person, two records that disagree */
+.cs-records{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s-5);}
+.cs-book{background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius); overflow:hidden;}
+.cs-book-head{
+  padding:var(--s-3) var(--s-5); border-bottom:1px solid var(--line); background:var(--surface-cool);
+  font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:.06em; color:var(--ink-2);
+}
+.cs-rec{padding:var(--s-4) var(--s-5); display:grid; gap:var(--s-1);}
+.cs-rec + .cs-rec{border-top:1px solid var(--line);}
+.cs-rec b{font-family:var(--font-display); font-weight:500; font-size:var(--body-lg); line-height:var(--lh-title); color:var(--ink);}
+.cs-rec span{font-size:var(--body-sm); color:var(--ink-2);}
+.cs-rec span.is-empty{color:var(--ink-3); font-style:italic;}
+.cs-flag{
+  justify-self:start; margin-top:var(--s-1); padding:2px var(--s-2); border-radius:var(--radius-sm);
+  background:var(--blue-wash); color:var(--blue-ink); font-style:normal;
+  font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:.08em; text-transform:uppercase;
+}
+@media (max-width:520px){ .cs-records{grid-template-columns:minmax(0,1fr);} }
+
+/* the solution: the site's process line, run down the panel */
+.cs-flow .process-list{grid-template-columns:minmax(0,1fr); row-gap:var(--s-6);}
+.cs-flow .process-rail{
+  top:calc(var(--heading-sm) * var(--lh-title) / 2); bottom:0; left:7px; right:auto; width:1px; height:auto;
+  background:linear-gradient(180deg, var(--line-2) 80%, transparent);
+}
+.cs-flow .process li{padding:0 0 0 2.5rem;}
+.cs-flow .process li::before{top:calc(var(--heading-sm) * var(--lh-title) / 2 - 7.5px); left:0;}
+.cs-flow .process p{max-width:var(--measure);}
+
+/* the outcome: a test result, shown as one */
+.cs-result-head{
+  font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase; color:var(--blue-ink); margin-bottom:var(--s-5);
+}
+.cs-stats{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s-5);}
+.cs-stats div{padding:var(--s-5); border:1px solid var(--line); border-radius:var(--radius); background:var(--bg);}
+.cs-stats dd{
+  font-family:var(--font-display); font-weight:500; font-size:var(--heading-lg); line-height:1;
+  letter-spacing:var(--track-heading); font-variant-numeric:tabular-nums; color:var(--ink);
+}
+.cs-stats dt{margin-top:var(--s-2); font-size:var(--body-sm); color:var(--ink-2);}
+.cs-stats div{display:flex; flex-direction:column-reverse; justify-content:flex-end;}
+
+/* ---- screenshots: framed, with highlights that point, never alter ---- */
+.cs-shot{margin:0;}
+.cs-frame{
+  position:relative; border-radius:var(--radius); overflow:visible;
+  box-shadow:var(--shadow-2);
+}
+.cs-frame img{display:block; width:100%; height:auto; border-radius:var(--radius); border:1px solid var(--line-2);}
+.cs-mark{
+  position:absolute; left:var(--x); top:var(--y); width:var(--w); height:var(--h);
+  border:2px solid #8FA8EC; border-radius:var(--radius);
+  box-shadow:0 0 0 4px rgba(93,127,232,.28); pointer-events:none;
+}
+.cs-mark.is-human{border-color:#D3A766; box-shadow:0 0 0 4px rgba(160,118,60,.3);}
+.cs-tag{
+  position:absolute; left:-2px; bottom:calc(100% + 6px); white-space:nowrap;
+  padding:3px var(--s-2); border-radius:var(--radius-sm); background:var(--blue-ink); color:#fff;
+  font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:.08em; text-transform:uppercase;
+  line-height:1.4;
+}
+.cs-mark.is-human .cs-tag{background:var(--human-ink);}
+.cs-tag.t-left{left:auto; bottom:auto; right:calc(100% + 8px); top:50%; transform:translateY(-50%);}
+.cs-tag.t-in{left:auto; bottom:auto; right:var(--s-2); top:var(--s-2);}
+.cs-tag.t-right{bottom:auto; left:calc(100% + 10px); top:0;}
+.cs-tag.t-above-r{left:auto; right:-2px;}
+.cs-shot figcaption{margin-top:var(--s-4); font-size:var(--body-sm); line-height:var(--lh-body-sm); color:var(--ink-3);}
+@media (max-width:767px){
+  .cs-mark{border-width:1.5px; box-shadow:0 0 0 3px rgba(93,127,232,.28);}
+  .cs-tag{padding:2px 6px; font-size:.625rem;}
+}
+
+/* ---- translated conversations (PT): the same messages, as real text,
+   labelled as a translation and linked to the original screenshot ---- */
+.cs-chat{
+  background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-2); overflow:hidden;
+}
+.cs-chat-head{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--s-3);
+  padding:var(--s-3) var(--s-5); border-bottom:1px solid var(--line); background:var(--surface-cool);
+  font-family:var(--font-mono-ui); font-size:var(--meta); color:var(--ink);
+}
+.cs-chat-head .cs-flag{margin:0;}
+.cs-chat-app{color:var(--ink-3); margin-right:var(--s-2);}
+.cs-chat-body{
+  display:flex; flex-direction:column; gap:var(--s-4); padding:var(--s-5);
+  font-size:.8125rem; line-height:1.5; color:var(--ink);
+}
+.cs-turn{display:flex; flex-direction:column; gap:var(--s-2); max-width:88%;}
+.cs-turn.from-bot{align-self:flex-start; align-items:flex-start;}
+.cs-turn.from-user{align-self:flex-end; align-items:flex-end;}
+.cs-msg{padding:var(--s-2) var(--s-3); border-radius:var(--radius); border:1px solid var(--line);}
+.from-bot .cs-msg{background:var(--surface-cool);}
+.from-user .cs-msg{background:var(--blue-wash); border-color:var(--blue-soft);}
+.cs-msg p{max-width:none; color:inherit;}
+.cs-msg > * + *{margin-top:var(--s-2);}
+.cs-msg ul,.cs-msg ol{padding-left:1.25em;}
+.cs-msg li + li{margin-top:2px;}
+.cs-msg img{display:block; width:100%; max-width:8rem; height:auto; border-radius:var(--radius-sm);}
+.cs-msg time{
+  display:block; margin-top:var(--s-1); text-align:right;
+  font-family:var(--font-mono-ui); font-size:.6875rem; color:var(--ink-3);
+}
+.cs-more{color:var(--ink-3);}
+.cs-hidden{
+  display:inline-block; padding:0 6px; border-radius:4px; background:#E1E7F0; color:var(--ink-3);
+  font-family:var(--font-mono-ui); font-size:.6875rem; line-height:1.6; vertical-align:1px;
+}
+/* highlights: blue for the assistant's steps, warm for the person's approval */
+.cs-msg.cs-hl{outline:2px solid var(--blue-2); outline-offset:3px;}
+.cs-msg.cs-hl.is-human{outline-color:var(--human);}
+.cs-hl-block{outline:2px solid var(--blue-2); outline-offset:2px; border-radius:var(--radius-sm); padding:var(--s-1) var(--s-2);}
+.cs-hl-block > * + *{margin-top:var(--s-1);}
+.cs-chat-tag{
+  padding:2px var(--s-2); border-radius:var(--radius-sm); background:var(--blue-ink); color:#fff;
+  font-family:var(--font-mono-ui); font-size:var(--meta); font-weight:500; letter-spacing:.08em;
+  text-transform:uppercase; line-height:1.4;
+}
+.cs-chat-tag.is-human{background:var(--human-ink);}
+@media (max-width:767px){
+  .cs-chat-body{padding:var(--s-4); gap:var(--s-3);}
+  .cs-turn{max-width:94%;}
+}
+
+/* ============================================================
+   gallery mode: 1024px and wider, when showcase.js runs
+   ============================================================ */
+.cs-bar{display:none;}
+.cs-deck.is-deck .cs-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--s-5);
+  border-bottom:1px solid var(--line-2); margin-bottom:var(--s-8);
+}
+.cs-tabs{display:flex; gap:var(--s-1); overflow-x:auto; scrollbar-width:none;}
+.cs-tabs::-webkit-scrollbar{display:none;}
+.cs-tab{
+  position:relative; flex:none; height:2.75rem; padding:0 .625rem; background:none; border:0; cursor:pointer;
+  font-family:var(--font-mono-ui); font-size:var(--meta); letter-spacing:var(--track-ui); color:var(--ink-3);
+  transition:color var(--motion-fast) var(--ease);
+}
+.cs-tab::after{
+  content:''; position:absolute; left:.625rem; right:.625rem; bottom:-1px; height:2px; border-radius:2px;
+  background:var(--blue); transform:scaleX(0); transition:transform var(--motion-normal) var(--ease);
+}
+.cs-tab:hover{color:var(--ink);}
+.cs-tab[aria-selected="true"]{color:var(--ink);}
+.cs-tab[aria-selected="true"]::after{transform:scaleX(1);}
+.cs-tab:focus-visible{outline-offset:-3px;}
+.cs-nav{display:flex; align-items:center; gap:var(--s-3); flex:none;}
+.cs-count{
+  min-width:3.5rem; text-align:right; font-family:var(--font-mono-ui); font-size:var(--meta);
+  font-variant-numeric:tabular-nums; color:var(--ink-2);
+}
+.cs-arrow{
+  width:var(--btn-h); height:var(--btn-h); display:grid; place-items:center; cursor:pointer;
+  background:var(--surface); color:var(--ink); border:1px solid var(--line-2); border-radius:var(--radius-sm);
+  transition:border-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.cs-arrow:hover:not([disabled]){border-color:var(--line-blue); color:var(--blue-ink);}
+.cs-arrow[disabled]{opacity:.4; cursor:default;}
+
+/* every slide shares one cell, so the gallery keeps its height */
+.cs-deck.is-deck .cs-slides{display:grid;}
+.cs-deck.is-deck .cs-slide{
+  grid-area:1 / 1; margin:0; padding:0; border:0;
+  visibility:hidden; opacity:0;
+  transition:opacity var(--motion-normal) var(--ease), visibility 0s linear var(--motion-normal);
+}
+.cs-deck.is-deck .cs-slide.is-current{
+  visibility:visible; opacity:1;
+  transition:opacity var(--motion-normal) var(--ease), visibility 0s;
+}
+/* a long conversation scrolls inside its panel, like a chat window,
+   so the gallery keeps the height of the screen */
+.cs-deck.is-deck .cs-chat-body{max-height:26rem; overflow-y:auto; overscroll-behavior:contain;}
+.cs-chat-body:focus-visible{outline:2px solid var(--blue); outline-offset:-2px;}
+/* the process line runs when its slide is shown, not before */
+.cs-deck.is-deck .cs-slide:not(.is-current) .pline{display:none;}
+
+@media (prefers-reduced-motion:reduce){
+  .cs-deck.is-deck .cs-slide,.cs-tab,.cs-tab::after{transition:none;}
+}

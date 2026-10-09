@@ -42,6 +42,14 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://botaniaco.com/contact-sync.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://botaniaco.com/contact-sync.html"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://botaniaco.com/pt-contact-sync.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://botaniaco.com/contact-sync.html"/>
+    <lastmod>2026-10-09</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://botaniaco.com/pt.html</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://botaniaco.com/"/>
     <xhtml:link rel="alternate" hreflang="pt-BR" href="https://botaniaco.com/pt.html"/>
@@ -80,5 +88,13 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://botaniaco.com/terms.html"/>
     <lastmod>2026-10-01</lastmod>
     <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://botaniaco.com/pt-contact-sync.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://botaniaco.com/contact-sync.html"/>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://botaniaco.com/pt-contact-sync.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://botaniaco.com/contact-sync.html"/>
+    <lastmod>2026-10-09</lastmod>
+    <priority>0.7</priority>
   </url>
 </urlset>
