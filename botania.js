@@ -1,1478 +1,728 @@
-/* ============================================================
-   BOTAN.IA v5
-   Carried forward from BOTANIA v4.
-
-   Two rendering layers, chosen deliberately:
-
-   1. SVG, the labelled systems. Real selectable text, focusable
-      nodes, crisp at any pixel density, ~40 elements per canvas.
-   2. CSS, the ambient structure: the hero planes, the process
-      line, the light. Transforms and opacity only.
-
-   No animation library. Growth is stroke-dashoffset transitions
-   driven by a cancellable timeline, as in v4.
-
-   What changed from v4: the palette (cool ground, muted blue for
-   movement), the node silhouette (a precise rounded rectangle in
-   place of the leaf corner), the node vocabulary (assistants
-   rather than "AI"), a slider calculator with eased numbers, and
-   the removal of the organic venation substrate, which no page
-   used and which no longer fits the brand.
-   ============================================================ */
+/* BOTAN.IA site script, second generation.
+   Draws the Branching Node Architecture as SVG and plays each system by
+   itself when it comes into view: nodes wake, line up and connect, paths
+   extend, a checkpoint waits and is approved. Nothing waits for the visitor
+   and nothing loops; a system starts again only after it has left the screen.
+   ?still  no opening clip     ?flat  finished states, as with reduced motion
+   ?hold   systems wait to be placed by a "botania:seek" event (captures) */
 (function(){
 'use strict';
 
-var NS = 'http://www.w3.org/2000/svg';
-var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-var EASE = 'cubic-bezier(.22,1,.36,1)';
-/* Motion tokens come from the stylesheet (--motion-*), so the diagrams
-   and the interface move on one timing scale. These are only fallbacks. */
-var MOTION = { fast:180, normal:320, slow:600, travel:800 };
-(function(){
-  var cs = getComputedStyle(document.documentElement);
-  Object.keys(MOTION).forEach(function(k){
-    var v = parseFloat(cs.getPropertyValue('--motion-' + k));
-    if(v > 0) MOTION[k] = v;
-  });
-})();
-var NODE_H = 40;
+var root = document.documentElement;
+var PT = (root.lang || 'en').slice(0, 2).toLowerCase() === 'pt';
+var mqSmall = window.matchMedia('(max-width: 899px)');
+var FLAT = root.classList.contains('no-motion');
+var STILL = FLAT || /[?&]still\b/.test(location.search);
+var HOLD = /[?&]hold\b/.test(location.search);
 
-/* Semantic palette. Each hue has exactly one job. */
-var DEEP = '#13243A', BLUE = '#4F72D8', HUMAN = '#A0763C';
-var EDGE = { trigger:DEEP,  std:'#A3B1C6', ai:BLUE, human:HUMAN, output:'#A3B1C6' };
-var GLYPH= { trigger:'#FFFFFF', std:'#3E4C60', ai:BLUE, human:'#83602C', output:'#3E4C60' };
-var LINE = '#B9C5D8', PULSE = '#5D7FE8', PATH = '#97ABD8';
-/* Diagram labels take their face from the stylesheet (.n-label), so the
-   typography tokens stay the single source. These are only a fallback. */
-var LABEL_FONT = '"IBM Plex Sans", sans-serif';
-var MARK_FONT  = 'Jost, sans-serif';
-
-function el(name, attrs){
-  var n = document.createElementNS(NS, name);
-  if(attrs) for(var k in attrs) n.setAttribute(k, attrs[k]);
-  return n;
-}
-
-/* A node is a precise rounded rectangle. The v4 signature kept its
-   `flip` argument for the alternating leaf corner; it is accepted and
-   ignored so callers do not change. */
-function nodePath(x, y, w, h){
-  var r = 9;
-  return 'M' + (x + r) + ' ' + y +
-    'H' + (x + w - r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (x + w) + ' ' + (y + r) +
-    'V' + (y + h - r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (x + w - r) + ' ' + (y + h) +
-    'H' + (x + r) + 'A' + r + ' ' + r + ' 0 0 1 ' + x + ' ' + (y + h - r) +
-    'V' + (y + r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (x + r) + ' ' + y + 'Z';
-}
-
-/* Cubic Bézier with handles along the flow axis. Branches always
-   leave a shared stem first (see hubs below). */
-function linkPath(a, b, vertical){
-  var dx = b[0] - a[0], dy = b[1] - a[1];
-  var axial = Math.abs(vertical ? dy : dx);
-  var cross = Math.abs(vertical ? dx : dy);
-  /* Handle length grows with the run and, more gently, with the offset,
-     then is capped so it can never reach past the target. */
-  var c = Math.max(30, axial * 0.55 + cross * 0.18);
-  c = Math.min(c, axial * 0.9 + 40);
-  if(vertical) return 'M' + a[0] + ' ' + a[1] + 'C' + a[0] + ' ' + (a[1] + c) + ',' + b[0] + ' ' + (b[1] - c) + ',' + b[0] + ' ' + b[1];
-  return 'M' + a[0] + ' ' + a[1] + 'C' + (a[0] + c) + ' ' + a[1] + ',' + (b[0] - c) + ' ' + b[1] + ',' + b[0] + ' ' + b[1];
-}
-
-/* 14×14 line glyphs. `seed` is the brand mark and is used only on the
-   BOTAN.IA node. Everything else is geometric. */
-var ICONS = {
-  seed:  ['M7 12.4V3.4','M7 5.6C4.6 5.6 3 7.2 2 8.6C4.4 9 6 8 7 5.6Z','M7 5.6C9.4 5.6 11 7.2 12 8.6C9.6 9 8 8 7 5.6Z'],
-  event: ['M7 2.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6Z','M7 5.5a1.5 1.5 0 1 1 0 3a1.5 1.5 0 1 1 0-3Z'],
-  ai:    ['M1.6 3.4L5.6 6.6','M1.6 10.6L5.6 7.4','M12.4 7H9.4','M7.5 5.4a1.7 1.7 0 1 1 0 3.4a1.7 1.7 0 1 1 0-3.4Z'],
-  db:    ['M2 3.2h10v7.6H2Z','M2 5.9h10','M2 8.3h10'],
-  cal:   ['M2 3.4h10v8.4H2Z','M2 6h10','M4.6 2v2.6','M9.4 2v2.6'],
-  mail:  ['M2 3.6h10v7.2H2Z','M2 3.6l5 3.8l5-3.8'],
-  chart: ['M1.4 12h11.2','M3.4 12V7.6','M7 12V3.6','M10.6 12V8.8'],
-  human: ['M7 2.6a2.1 2.1 0 1 1 0 4.2a2.1 2.1 0 1 1 0-4.2Z','M2.7 12.2c0-2.5 1.9-4 4.3-4s4.3 1.5 4.3 4'],
-  users: ['M5.2 3a1.9 1.9 0 1 1 0 3.8a1.9 1.9 0 1 1 0-3.8Z','M1.4 11.6c0-2.2 1.7-3.5 3.8-3.5s3.8 1.3 3.8 3.5','M9.6 3.6a1.7 1.7 0 1 1 0 3.4','M10.2 8.3c1.5.3 2.4 1.5 2.4 3.3'],
-  doc:   ['M3.2 1.9h4.6l3 3v7.2H3.2Z','M7.8 1.9v3h3','M5.2 8.2h3.6','M5.2 10.2h3.6'],
-  card:  ['M1.5 3.4h11v7.2h-11Z','M1.5 5.9h11','M3.6 8.6h2.6'],
-  task:  ['M2 2.6h10v8.8H2Z','M4.4 7.1l1.9 1.9l3.4-3.6'],
-  clock: ['M7 1.9a5.1 5.1 0 1 1 0 10.2a5.1 5.1 0 1 1 0-10.2Z','M7 4.3V7l2 1.4'],
-  sheet: ['M2 2.6h10v8.8H2Z','M2 5.6h10','M2 8.5h10','M5.6 2.6v8.8'],
-  layers:['M7 2L12.4 4.8L7 7.6L1.6 4.8Z','M1.6 7.4L7 10.2L12.4 7.4','M1.6 9.8L7 12.6L12.4 9.8']
+/* names drawn inside the systems, in the page's language */
+var T = PT ? {
+  messages:'Mensagens', bookings:'Agendamentos', clients:'Dados de clientes', payments:'Pagamentos', documents:'Documentos', team:'Operação da equipe',
+  record:'Cadastro atualizado', followup:'Follow-up enviado', calendar:'Agenda atualizada',
+  replyDraft:'Resposta redigida', invoiceReady:'Fatura preparada', bookingAsk:'Pedido de agendamento',
+  replySent:'Resposta enviada', invoiceSent:'Fatura enviada', bookingOk:'Agendamento confirmado',
+  friction:['Mensagens', 'Agendamentos', 'Follow-up', 'Dados de clientes', 'Formulários', 'Pagamentos', 'Agenda', 'Relatórios', 'Arquivos', 'Lembretes'],
+  google:'Google Contatos', outlook:'Outlook', asks:'Pergunta antes de salvar',
+  locale:'pt-BR', hour:'hora', hours:'horas',
+  weeksUnder:'menos de meia semana de trabalho', weeksOne:'cerca de uma semana de trabalho',
+  weeksMany:function(n){ return 'cerca de ' + n + ' semanas de trabalho'; },
+  live:function(a, u, y, w){ return 'Cerca de ' + a + ' ' + u + ' por semana. Em um ano, ' + y + ' horas, ' + w + '.'; }
+} : {
+  messages:'Messages', bookings:'Bookings', clients:'Client information', payments:'Payments', documents:'Documents', team:'Team operations',
+  record:'Client record updated', followup:'Follow-up sent', calendar:'Calendar updated',
+  replyDraft:'Reply drafted', invoiceReady:'Invoice prepared', bookingAsk:'Booking request',
+  replySent:'Reply sent', invoiceSent:'Invoice sent', bookingOk:'Booking confirmed',
+  friction:['Messages', 'Bookings', 'Follow-up', 'Client details', 'Forms', 'Payments', 'Scheduling', 'Reporting', 'Files', 'Reminders'],
+  google:'Google Contacts', outlook:'Outlook', asks:'Asks before saving',
+  locale:'en-US', hour:'hour', hours:'hours',
+  weeksUnder:'under half a workweek', weeksOne:'about one workweek',
+  weeksMany:function(n){ return 'about ' + n + ' workweeks'; },
+  live:function(a, u, y, w){ return 'About ' + a + ' ' + u + ' a week. Over a year, ' + y + ' hours, ' + w + '.'; }
 };
+
+function clamp01(v){ return v < 0 ? 0 : v > 1 ? 1 : v; }
+function seg(p, a, b){ return clamp01((p - a) / (b - a)); }
+function ease(t){ return t * t * (3 - 2 * t); }
 
 /* ============================================================
-   SystemCanvas
-   Builds one labelled system from a spec, then grows it.
-   ============================================================ */
-function SystemCanvas(svg, spec){
-  var vertical = !!spec.vertical;
-  var byId = {}, ports = {}, nodeEls = {}, linkEls = {}, hubEls = {};
-  var timers = [], chainTimer = null, grown = false;
-
-  svg.setAttribute('viewBox', '0 0 ' + spec.viewBox[0] + ' ' + spec.viewBox[1]);
-  svg.setAttribute('width', spec.viewBox[0]);
-  svg.setAttribute('height', spec.viewBox[1]);
-  svg.setAttribute('role', 'img');
-  svg.classList.toggle('is-vertical', vertical);
-  while(svg.firstChild) svg.removeChild(svg.firstChild);
-
-  spec.nodes.forEach(function(n){ byId[n.id] = n; });
-  (spec.hubs || []).forEach(function(h){ byId[h.id] = h; });
-
-  function outPort(id){
-    var n = byId[id];
-    if(n.w === undefined) return [n.x, n.y];                       // hub
-    return vertical ? [n.x + n.w / 2, n.cy + NODE_H / 2] : [n.x + n.w, n.cy];
-  }
-  function inPort(id){
-    var n = byId[id];
-    if(n.w === undefined) return [n.x, n.y];
-    return vertical ? [n.x + n.w / 2, n.cy - NODE_H / 2] : [n.x, n.cy];
-  }
-
-  var gLink = el('g', {'class':'links'}),  gPulse = el('g', {'class':'pulses'}),
-      gPort = el('g', {'class':'ports'}),  gNode  = el('g', {'class':'nodes'});
-  svg.appendChild(gLink); svg.appendChild(gPulse); svg.appendChild(gPort); svg.appendChild(gNode);
-
-  /* ---- links ---- */
-  spec.links.forEach(function(l, i){
-    l.id = l.id || ('l' + i);
-    var a = outPort(l.from), b = inPort(l.to);
-    var p = el('path', { d: linkPath(a, b, vertical), fill:'none', stroke:LINE,
-                         'stroke-linecap':'round', 'stroke-width': l.w || 1.2 });
-    p.dataset.w = l.w || 1.2;
-    gLink.appendChild(p);
-    linkEls[l.id] = p;
-    var pt = el('circle', { cx:b[0], cy:b[1], r:2.4, fill:LINE });
-    pt.style.opacity = 0; gPort.appendChild(pt); ports[l.id] = pt;
-  });
-
-  /* ---- hubs: the branch point where a stem divides ---- */
-  (spec.hubs || []).forEach(function(h){
-    var c = el('circle', { cx:h.x, cy:h.y, r:3.2, fill:'#fff', stroke:BLUE, 'stroke-width':1.2 });
-    c.style.opacity = 0; gPort.appendChild(c); hubEls[h.id] = c;
-  });
-
-  /* ---- nodes ---- */
-  spec.nodes.forEach(function(n){
-    var y = n.cy - NODE_H / 2;
-    var g = el('g', { 'class':'sysnode', tabindex:'0', role:'group',
-                      'aria-label': tr(n.label) + (n.role ? '. ' + tr(n.role) : '') });
-    g.dataset.role = n.role ? tr(n.role) : '';
-    g.dataset.label = n.label;
-
-    g.appendChild(el('path', { 'class':'n-halo', d: nodePath(n.x - 5, y - 5, n.w + 10, NODE_H + 10),
-                               fill:'none', stroke: EDGE[n.kind], 'stroke-width':1, opacity:'.3' }));
-    if(n.kind !== 'trigger'){
-      g.appendChild(el('path', { d: nodePath(n.x, y + 3, n.w, NODE_H),
-                                 fill:'rgba(19,36,58,.05)', stroke:'none' }));
-    }
-    g.appendChild(el('path', { 'class':'n-body', d: nodePath(n.x, y, n.w, NODE_H),
-                               fill: n.kind === 'trigger' ? DEEP : '#FFFFFF',
-                               stroke: EDGE[n.kind], 'stroke-width': n.kind === 'ai' ? 1.2 : 1 }));
-    /* human checkpoints carry a second, warmer edge on the entry side */
-    if(n.kind === 'human'){
-      var hx = vertical ? null : n.x + 1;
-      if(hx !== null){
-        g.appendChild(el('path', { d:'M' + hx + ' ' + (y + 11) + 'V' + (y + NODE_H - 11),
-                                   stroke:HUMAN, 'stroke-width':2, 'stroke-linecap':'round' }));
-      } else {
-        g.appendChild(el('path', { d:'M' + (n.x + 12) + ' ' + (y + 1) + 'H' + (n.x + n.w - 12),
-                                   stroke:HUMAN, 'stroke-width':2, 'stroke-linecap':'round' }));
-      }
-    }
-    var ic = el('g', { 'class':'n-icon', transform:'translate(' + (n.x + 12) + ',' + (n.cy - 7) + ')',
-                       stroke: GLYPH[n.kind], 'stroke-width':1.2, fill:'none',
-                       'stroke-linecap':'round', 'stroke-linejoin':'round' });
-    (ICONS[n.icon] || ICONS.db).forEach(function(d){ ic.appendChild(el('path', { d:d })); });
-    g.appendChild(ic);
-
-    var t = el('text', { 'class': n.mark ? 'n-label n-mark' : 'n-label', x: n.x + 34, y: n.cy, 'dominant-baseline':'central',
-                         'font-family': n.mark ? MARK_FONT : LABEL_FONT,
-                         'font-size': n.mark ? 12.5 : 12.75,
-                         'font-weight': 600,
-                         'letter-spacing': n.mark ? '2.4' : '-0.1',
-                         fill: n.kind === 'trigger' ? '#FFFFFF' : '#142033' });
-    t.textContent = tr(n.label);
-    g.appendChild(t);
-
-    g.appendChild(el('circle', { 'class':'n-status', cx:n.x + n.w - 12, cy:n.cy - 11, r:2.2,
-                                 fill: n.kind === 'trigger' ? 'rgba(220,231,247,.8)' :
-                                       n.kind === 'ai' ? 'rgba(79,114,216,.7)' : 'rgba(163,177,198,.8)' }));
-    gNode.appendChild(g);
-    nodeEls[n.id] = g;
-  });
-
-  /* ---- growth order, derived rather than authored ----
-     Sources are the nodes nothing points at. Deriving them from the graph
-     rather than from the trigger styling matters: the closing canvas
-     converges several branches INTO a BOTAN.IA node, so the trigger-styled
-     node there is the destination, not the origin. */
-  var pointedAt = {};
-  spec.links.forEach(function(l){ pointedAt[l.to] = 1; });
-  var roots = spec.nodes.filter(function(n){ return !pointedAt[n.id]; }).map(function(n){ return n.id; });
-  if(!roots.length) roots = [spec.nodes[0].id];
-
-  function buildSequence(){
-    var seen = {}, queue = roots.slice(), steps = [];
-    roots.forEach(function(id){ seen[id] = 1; steps.push({ t:'node', id:id }); });
-    while(queue.length){
-      var cur = queue.shift();
-      spec.links.forEach(function(l){
-        if(l.from !== cur) return;
-        steps.push({ t:'link', id:l.id });
-        if(!seen[l.to]){
-          seen[l.to] = 1;
-          steps.push({ t: hubEls[l.to] ? 'hub' : 'node', id:l.to });
-          queue.push(l.to);
-        }
-      });
-    }
-    return steps;
-  }
-  var SEQ = buildSequence();
-
-  /* ---- root-to-leaf chains, for pulses ---- */
-  function buildChains(){
-    var out = [];
-    function walk(id, path, depth){
-      if(depth > 24) return;                       // cycle guard
-      var next = spec.links.filter(function(l){ return l.from === id; });
-      if(!next.length){ if(path.length) out.push(path.slice()); return; }
-      next.forEach(function(l){ path.push(l.id); walk(l.to, path, depth + 1); path.pop(); });
-    }
-    roots.forEach(function(id){ walk(id, [], 0); });
-    return out;
-  }
-  var CHAINS = buildChains();
-
-  function clearTimers(){
-    timers.forEach(clearTimeout); timers = [];
-    if(chainTimer){ clearTimeout(chainTimer); chainTimer = null; }
-    while(gPulse.firstChild) gPulse.removeChild(gPulse.firstChild);
-  }
-  function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
-
-  function seed(){
-    clearTimers(); grown = false;
-    spec.links.forEach(function(l){
-      var p = linkEls[l.id], len = p.getTotalLength();
-      p.style.transition = 'none';
-      p.style.stroke = '';
-      p.style.strokeDasharray = len;
-      p.style.strokeDashoffset = len;
-      p.style.strokeWidth = 0.5;
-      ports[l.id].style.transition = 'none';
-      ports[l.id].style.opacity = 0;
-    });
-    Object.keys(hubEls).forEach(function(k){
-      hubEls[k].style.transition = 'none'; hubEls[k].style.opacity = 0;
-    });
-    spec.nodes.forEach(function(n){
-      var g = nodeEls[n.id];
-      g.style.transition = 'none';
-      g.style.opacity = 0;
-      g.style.transform = vertical ? 'translateY(6px)' : 'translateY(4px)';
-    });
-    svg.getBoundingClientRect();
-  }
-
-  /* The tools before they are connected: present, nothing linking them. */
-  function seedNodesOnly(){
-    seed();
-    svg.classList.add('state-manual');
-    spec.nodes.forEach(function(n, i){
-      at(80 + i * 70, function(){
-        var g = nodeEls[n.id];
-        g.style.transition = 'opacity ' + MOTION.normal + 'ms ' + EASE + ', transform ' + MOTION.normal + 'ms ' + EASE;
-        g.style.opacity = 1; g.style.transform = 'none';
-      });
-    });
-  }
-
-  function settle(){
-    clearTimers(); grown = true;
-    svg.classList.remove('state-manual');
-    spec.links.forEach(function(l){
-      var p = linkEls[l.id];
-      p.style.transition = 'none';
-      p.style.strokeDasharray = 'none';
-      p.style.strokeDashoffset = 0;
-      p.style.strokeWidth = l.w || 1.2;
-      ports[l.id].style.transition = 'none';
-      ports[l.id].style.opacity = 1;
-    });
-    Object.keys(hubEls).forEach(function(k){ hubEls[k].style.opacity = 1; });
-    spec.nodes.forEach(function(n){
-      var g = nodeEls[n.id];
-      g.style.transition = 'none'; g.style.opacity = 1; g.style.transform = 'none';
-    });
-    highlightPath(true);
-  }
-
-  /* Reduced motion still gets the "information travels here" idea,
-     as a fixed segment on the trunk rather than a moving one. */
-  function staticSignal(){
-    if(!CHAINS.length) return;
-    var chain = CHAINS[0];
-    chain.slice(0, 3).forEach(function(id, i){
-      var src = linkEls[id], len = src.getTotalLength();
-      var p = el('path', { d: src.getAttribute('d'), fill:'none', stroke:PULSE,
-                           'stroke-linecap':'round',
-                           'stroke-width': Math.max(1.2, src.dataset.w * 0.95) });
-      p.setAttribute('stroke-dasharray', Math.min(40, len) + ' ' + (len + 80));
-      p.setAttribute('stroke-dashoffset', -len * 0.35);
-      p.style.opacity = 0.8 - i * 0.16;
-      gPulse.appendChild(p);
-    });
-  }
-
-  function growLink(id, dur){
-    var p = linkEls[id];
-    p.style.transition = 'stroke-dashoffset ' + dur + 'ms ' + EASE +
-                         ', stroke-width ' + MOTION.fast + 'ms ' + EASE + ' ' + Math.max(0, dur - 140) + 'ms';
-    p.style.strokeDashoffset = 0;
-    p.style.strokeWidth = p.dataset.w;
-    at(Math.max(0, dur - 200), function(){
-      ports[id].style.transition = 'opacity ' + MOTION.normal + 'ms ' + EASE;
-      ports[id].style.opacity = 1;
-    });
-  }
-  function activate(id){
-    var g = nodeEls[id];
-    g.style.transition = 'opacity ' + MOTION.normal + 'ms ' + EASE + ', transform ' + MOTION.normal + 'ms ' + EASE;
-    g.style.opacity = 1; g.style.transform = 'none';
-  }
-
-  /* A pulse is a short bright segment with a faint wider trail under
-     it, so it reads as light moving rather than a line redrawing. */
-  function firePulse(id){
-    var src = linkEls[id];
-    if(!src) return 0;
-    var len = src.getTotalLength();
-    var w = Math.max(1.3, src.dataset.w * 1.05);
-    var glow = el('path', { d: src.getAttribute('d'), fill:'none', stroke:PULSE,
-                            'stroke-linecap':'round', 'stroke-width': w * 3.2 });
-    var p = el('path', { d: src.getAttribute('d'), fill:'none', stroke:PULSE,
-                         'stroke-linecap':'round', 'stroke-width': w });
-    [glow, p].forEach(function(s, i){
-      s.style.strokeDasharray = '28 ' + (len + 60);
-      s.style.strokeDashoffset = 28;
-      s.style.opacity = i ? 0.9 : 0.12;
-      gPulse.appendChild(s);
-    });
-    var dur = Math.max(320, len / 190 * 1000);
-    requestAnimationFrame(function(){
-      [glow, p].forEach(function(s){
-        s.style.transition = 'stroke-dashoffset ' + dur + 'ms linear';
-        s.style.strokeDashoffset = -len;
-      });
-    });
-    at(dur + 160, function(){
-      [glow, p].forEach(function(s){ if(s.parentNode) s.parentNode.removeChild(s); });
-    });
-    return dur;
-  }
-
-  /* Once the system has assembled, its main route is drawn a shade
-     stronger and carries one pulse. After that the system mostly rests:
-     one pulse along one route every few seconds, and none at all while
-     the canvas is off screen. */
-  var chainIdx = 0, AMBIENT_REST = 6500, onScreen = true, waiting = false;
-  function highlightPath(instant){
-    if(!CHAINS.length) return;
-    CHAINS[0].forEach(function(id){
-      var p = linkEls[id];
-      p.style.transition = instant ? 'none' : 'stroke ' + MOTION.travel + 'ms ' + EASE;
-      p.style.stroke = PATH;
-    });
-  }
-  if(svg._io) svg._io.disconnect();
-  if('IntersectionObserver' in window){
-    svg._io = new IntersectionObserver(function(entries){
-      onScreen = entries[0].isIntersecting;
-      if(onScreen && waiting) runChains();
-    });
-    svg._io.observe(svg);
-  }
-  function runChains(){
-    if(!CHAINS.length || REDUCED) return;
-    if(!onScreen){ waiting = true; return; }
-    waiting = false;
-    var chain = CHAINS[chainIdx % CHAINS.length]; chainIdx++;
-    var acc = 0;
-    chain.forEach(function(id){
-      at(acc, function(){ firePulse(id); });
-      var l = linkEls[id];
-      acc += Math.max(320, l.getTotalLength() / 190 * 1000) * 0.82;
-      /* a human checkpoint holds the signal for a beat: a decision happened */
-      var link = spec.links.filter(function(x){ return x.id === id; })[0];
-      if(link && byId[link.to] && byId[link.to].kind === 'human') acc += 420;
-    });
-    chainTimer = setTimeout(runChains, acc + AMBIENT_REST);
-    timers.push(chainTimer);
-  }
-
-  var NODE_MS = MOTION.normal, LINK_MS = spec.linkMs || 640, GAP = 80;
-  function grow(opts){
-    opts = opts || {};
-    seed();
-    var t = opts.delay || 120;
-    SEQ.forEach(function(s){
-      if(s.t === 'link'){
-        at(t, function(){ growLink(s.id, LINK_MS); });
-        t += LINK_MS + 40;
-      } else if(s.t === 'hub'){
-        at(t, function(){
-          hubEls[s.id].style.transition = 'opacity ' + MOTION.normal + 'ms ' + EASE;
-          hubEls[s.id].style.opacity = 1;
-        });
-        t += 180;
-      } else {
-        at(t, (function(id){ return function(){ activate(id); }; })(s.id));
-        t += NODE_MS + GAP;
-      }
-    });
-    at(t, function(){ grown = true; highlightPath(); });
-    if(opts.pulse !== false) at(t + 600, runChains);
-    return t;
-  }
-
-  /* Grow the connections onto nodes that are already standing. */
-  function connect(){
-    clearTimers();
-    svg.classList.remove('state-manual');
-    var t = 60;
-    SEQ.forEach(function(s){
-      if(s.t === 'link'){ at(t, function(){ growLink(s.id, LINK_MS); }); t += LINK_MS * 0.55; }
-      else if(s.t === 'hub'){
-        at(t, function(){ hubEls[s.id].style.transition = 'opacity ' + MOTION.normal + 'ms ' + EASE; hubEls[s.id].style.opacity = 1; });
-      }
-    });
-    return t;
-  }
-
-  return {
-    svg: svg,
-    grow: grow,
-    connect: connect,
-    seed: seed,
-    seedNodesOnly: seedNodesOnly,
-    settle: settle,
-    staticSignal: staticSignal,
-    flow: runChains,
-    stop: clearTimers,
-    isGrown: function(){ return grown; },
-    nodes: nodeEls
-  };
-}
-
-/* ============================================================
-   node role tooltips. Hovering a node reveals what it does
-   ============================================================ */
-function initNodeRoles(plate){
-  var tip = document.createElement('div');
-  tip.className = 'node-role';
-  tip.setAttribute('role', 'status');
-  plate.appendChild(tip);
-
-  function show(g){
-    var role = g.dataset.role;
-    if(!role) return;
-    tip.textContent = role;
-    tip.classList.add('show');
-    var pr = plate.getBoundingClientRect();
-    var gr = g.getBoundingClientRect();
-    var tw = tip.offsetWidth, th = tip.offsetHeight;
-    var left = gr.left - pr.left + gr.width / 2 - tw / 2;
-    left = Math.max(8, Math.min(left, pr.width - tw - 8));
-    var top = gr.top - pr.top - th - 10;
-    if(top < 6) top = gr.top - pr.top + gr.height + 10;
-    tip.style.left = left + 'px';
-    tip.style.top = top + 'px';
-  }
-  function hide(){ tip.classList.remove('show'); }
-
-  plate.addEventListener('pointerover', function(e){
-    var g = e.target.closest && e.target.closest('.sysnode');
-    if(g) show(g); else hide();
-  });
-  plate.addEventListener('pointerleave', hide);
-  plate.addEventListener('focusin', function(e){
-    var g = e.target.closest && e.target.closest('.sysnode');
-    if(g) show(g);
-  });
-  plate.addEventListener('focusout', hide);
-}
-
-/* ============================================================
-   start a canvas when it enters the viewport
-   ============================================================ */
-function whenVisible(node, fn){
-  if(!('IntersectionObserver' in window)){ fn(); return; }
-  var vh = window.innerHeight || document.documentElement.clientHeight;
-  if(node.getBoundingClientRect().top < vh){ fn(); return; }
-  var done = false;
-  var io = new IntersectionObserver(function(entries){
-    if(entries[0].isIntersecting && !done){ done = true; io.disconnect(); fn(); }
-  }, { threshold: 0.2 });
-  io.observe(node);
-}
-
-/* ============================================================
-   SYSTEM SPECS
-   Node labels use the business owner's vocabulary. Never
-   "webhook", "trigger", "payload", "endpoint". "Assistant" is
-   preferred to "AI" wherever it reads naturally.
-   ============================================================ */
-
-var ROLES = {
-  lead:   'A form submission, an email or a referral. Whatever starts the process.',
-  qual:   'The assistant reads the inquiry, checks it against your criteria and routes it. Anything unclear goes to a person.',
-  crm:    'The record is created and kept current without anyone typing it in twice.',
-  sched:  'Offers real availability and books the time automatically.',
-  reply:  'Drafts the reply using what the system already knows about this lead. You send it, or edit it first.',
-  review: 'You approve anything unusual, or above a value you set. The system waits, then carries on.'
-};
-
-/* ---- Portuguese ----------------------------------------------------------
-   Both languages share this file. Diagram labels, hover text, captions and
-   calculator strings live here rather than in the markup, and are swapped at
-   render time based on <html lang>. Anything missing falls through to
-   English, which keeps a half-finished translation readable. */
-var PT_ON = /^pt/i.test(document.documentElement.getAttribute('lang') || '');
-var PT = {
-  /* node labels */
-  'New Lead':'Novo Lead',
-  'Capture':'Captura',
-  'CRM Update':'Atualiza CRM',
-  'Qualification':'Qualificação',
-  'Scheduling':'Agendamento',
-  'Reply Assistant':'Assistente de Resposta',
-  'Owner Review':'Sua Aprovação',
-  'Follow-up':'Follow-up',
-  'New Client':'Novo Cliente',
-  'Intake':'Cadastro',
-  'Documents':'Documentos',
-  'Internal Tasks':'Tarefas Internas',
-  'Document Check':'Conferência',
-  'Approval':'Aprovação',
-  'Client Update':'Aviso ao Cliente',
-  'Referral':'Indicação',
-  'Service':'Serviço',
-  'Report Assistant':'Assistente de Relatório',
-  'Invoice':'Nota Fiscal',
-  'Client Delivery':'Entrega Final',
-  'Context':'Contexto',
-  'Judgment':'Critério',
-  'Systems':'Sistemas',
-  'Inbox':'Caixa de Entrada',
-  'Follow-ups':'Follow-ups',
-  'Data entry':'Entrada de dados',
-  'Reporting':'Relatórios',
-  'Assistant':'Assistente',
-  'Capacity':'Capacidade',
-  'Clients':'Clientes',
-  'Sales':'Vendas',
-  'Strategy':'Estratégia',
-  'Delivery':'Entrega',
-  'Spreadsheets':'Planilhas',
-  'Calendar':'Agenda',
-  'Invoicing':'Faturamento',
-
-  /* shared hover text */
-  'A form submission, an email or a referral. Whatever starts the process.':
-    'Um formulário, um e-mail ou uma indicação. O que quer que comece o processo.',
-  'The assistant reads the inquiry, checks it against your criteria and routes it. Anything unclear goes to a person.':
-    'O assistente lê o contato, confere com os seus critérios e encaminha. O que ficar em dúvida vai para uma pessoa.',
-  'The record is created and kept current without anyone typing it in twice.':
-    'O registro é criado e mantido em dia sem ninguém digitar duas vezes.',
-  'Offers real availability and books the time automatically.':
-    'Oferece os horários que existem de verdade e agenda automaticamente.',
-  'Drafts the reply using what the system already knows about this lead. You send it, or edit it first.':
-    'Escreve a resposta com o que o sistema já sabe sobre esse lead. Você envia ou edita antes.',
-  'You approve anything unusual, or above a value you set. The system waits, then carries on.':
-    'Você aprova o que for fora do padrão, ou acima de um valor que definir. O sistema espera e depois segue.',
-  'The details are recorded once, in a consistent shape, with nobody retyping them.':
-    'Os dados são registrados uma vez, no mesmo formato, sem ninguém digitar de novo.',
-
-  /* per-node hover text */
-  'Chases the ones that go quiet, on a schedule you set once.':
-    'Cobra quem some, no ritmo que você definir uma vez.',
-  'A signed proposal or a closed deal. Onboarding starts itself.':
-    'Uma proposta assinada ou um negócio fechado. O onboarding começa sozinho.',
-  'One form, asked once, feeding everything after it.':
-    'Um formulário, perguntado uma vez, alimentando tudo depois.',
-  'Asks for what is missing and chases it until it arrives.':
-    'Pede o que está faltando e cobra até chegar.',
-  'Assigns the setup work to the right people with the right dates.':
-    'Distribui o trabalho de setup para as pessoas certas com os prazos certos.',
-  'Reads what came in, pulls out what matters and flags anything that looks wrong.':
-    'Lê o que chegou, separa o que importa e sinaliza o que parece errado.',
-  'A person confirms before anything reaches the client.':
-    'Uma pessoa confirma antes de qualquer coisa chegar ao cliente.',
-  'The client hears where things stand without having to ask.':
-    'O cliente sabe como as coisas estão sem precisar perguntar.',
-  'However the work arrives: a partner, a portal or a phone call.':
-    'Como o trabalho chegar: um parceiro, um portal ou um telefonema.',
-  'Captured once, organized, and sent to the right place.':
-    'Registrado uma vez, organizado e encaminhado para o lugar certo.',
-  'Booked against real availability and confirmed automatically.':
-    'Agendado nos horários que existem de verdade e confirmado automaticamente.',
-  'The work your team is there to do.':
-    'O trabalho que a sua equipe está ali para fazer.',
-  'Prepares the report from what the system already recorded.':
-    'Prepara o relatório a partir do que o sistema já registrou.',
-  'Raised from the work the system already recorded.':
-    'Emitida a partir do trabalho que o sistema já registrou.',
-  'You review the report before it goes to the client.':
-    'Você revisa o relatório antes de ir para o cliente.',
-  'Report and invoice reach the client together, on time.':
-    'Relatório e nota chegam juntos ao cliente, no prazo.',
-  'Requests arrive here and are routed to the right place.':
-    'As solicitações chegam aqui e são encaminhadas para o lugar certo.',
-  'Kept current by the system instead of by hand.':
-    'Mantidas em dia pelo sistema, não à mão.',
-  'Filed once, in the right place, and linked to the record.':
-    'Arquivados uma vez, no lugar certo e ligados ao registro.',
-  'The shared record every other tool reads from and updates.':
-    'O registro central que as outras ferramentas consultam e atualizam.',
-
-  /* capacity diagram */
-  'Reminders and replies that someone has to remember to send.':
-    'Lembretes e respostas que alguém precisa lembrar de enviar.',
-  'The same details typed into more than one place.':
-    'Os mesmos dados digitados em mais de um lugar.',
-  'Back-and-forth to find a time that works.':
-    'Idas e vindas para encontrar um horário que funcione.',
-  'Numbers gathered by hand every week or month.':
-    'Números reunidos à mão toda semana ou todo mês.',
-  'Handles the recurring steps, with review points where a person should decide.':
-    'Cuida das etapas recorrentes, com pontos de revisão onde uma pessoa deve decidir.',
-  'Time and attention that no longer go to repetitive work.':
-    'Tempo e atenção que deixam de ir para o trabalho repetitivo.',
-  'More time for the clients you already serve.':
-    'Mais tempo para os clientes que você já atende.',
-  'Room to follow up on opportunities and new conversations.':
-    'Espaço para acompanhar oportunidades e novas conversas.',
-  'Time to plan ahead instead of reacting.':
-    'Tempo para planejar em vez de apenas reagir.',
-  'More attention for the quality of the work itself.':
-    'Mais atenção para a qualidade do próprio trabalho.',
-
-  /* scenario captions */
-  'An inquiry is captured and recorded in your CRM. The system qualifies it, an assistant drafts the reply and scheduling is handled automatically. You review anything unusual before follow-up continues.':
-    'O contato é registrado e vai para o CRM. O sistema qualifica, um assistente escreve a resposta e o agendamento acontece automaticamente. Você revisa o que for fora do padrão antes do follow-up seguir.',
-  'Onboarding runs on its own. Details are collected once, documents are requested, setup tasks are assigned and the system checks what comes back. A person approves before anything reaches the client.':
-    'O onboarding roda sozinho. Os dados são coletados uma vez, os documentos são solicitados, as tarefas de setup são distribuídas e o sistema confere o que chega. Uma pessoa aprova antes de qualquer coisa ir para o cliente.',
-  'A referral moves through scheduling and delivery. An assistant prepares the report from what the system already recorded, you approve it, and the invoice goes out with it.':
-    'Uma indicação passa pelo agendamento e segue até a entrega. Um assistente prepara o relatório com o que o sistema já registrou, você aprova e a nota sai junto.',
-
-  /* tools captions */
-  'Your tools, as they are today. A person moves information between them.':
-    'Suas ferramentas, como estão hoje. Uma pessoa leva a informação de uma para outra.',
-  'We map how information moves, then build the connections that carry it.':
-    'Mapeamos como a informação circula e construímos as conexões que a levam.',
-  'The same tools, working as one system. Information arrives where it is needed.':
-    'As mesmas ferramentas, funcionando como um sistema. A informação chega onde é necessária.',
-  'Replay':'Repetir',
-  'Motion reduced':'Movimento reduzido',
-
-  /* calculator */
-  'under half a workweek':'menos de meia semana de trabalho',
-  'about one workweek':'cerca de uma semana de trabalho',
-  'about {n} workweeks':'cerca de {n} semanas de trabalho',
-  'hour':'hora',
-  'hours':'horas',
-  'You could create {n} {u} of additional capacity per week.':'Você poderia criar {n} {u} de capacidade adicional por semana.',
-
-  /* navigation */
-  'Open menu':'Abrir menu',
-  'Close menu':'Fechar menu'
-};
-function tr(str){ return (PT_ON && PT[str]) || str; }
-
-/* Portuguese labels run longer than their English counterparts, so a few
-   node boxes widen to keep the same breathing room around the text. Each
-   widening fits inside an existing gap, so no downstream node has to move. */
-var PT_LAYOUT = {
-  scenarioLead:    { nodes:{ lead:{w:120}, cap:{x:154, w:112}, crm:{x:290, w:140}, qual:{x:452, w:152},
-                             sched:{x:658, w:146}, resp:{x:648, w:212}, review:{x:904, w:148}, follow:{x:1072} },
-                     hubs:{ h1:{x:630}, h2:{x:880} } },
-  scenarioClient:  { nodes:{ client:{w:140}, intake:{w:114}, docs:{w:136}, tasks:{w:170}, upd:{w:170} } },
-  scenarioService: { nodes:{ ref:{w:122}, intake:{w:114}, sched:{w:146}, inv:{w:134}, rep:{x:644, w:218}, appr:{x:882} },
-                     hubs:{ h2:{x:1022} } },
-  /* The longer Portuguese labels need the whole row on a phone, so these
-     canvases are authored a little wider in Portuguese. */
-  scenarioLeadMobile:    { viewBox:[380,600], nodes:{ sched:{x:6, w:144}, resp:{x:164, w:210} } },
-  scenarioClientMobile:  { nodes:{ tasks:{x:188, w:170}, upd:{x:84, w:170} } },
-  scenarioServiceMobile: { viewBox:[380,606], nodes:{ rep:{x:2, w:218}, inv:{x:238, w:134}, sched:{x:88, w:146} } },
-  transform:       { nodes:{ inbox:{w:170}, inv:{w:138} } },
-  transformMobile: { nodes:{ inbox:{x:96, w:168} } },
-  cta:             { nodes:{ ctx:{x:97, w:118}, sys:{x:427, w:116} } },
-  capacity:        { nodes:{ t2:{w:168}, t3:{w:148}, as:{w:128}, cp:{w:130}, o1:{w:132}, o2:{w:132}, o3:{w:132}, o4:{w:132} } },
-  capacityMobile:  { nodes:{ t2:{x:186, w:170} } }
-};
-function localiseSpecs(){
-  if(!PT_ON) return;
-  Object.keys(PT_LAYOUT).forEach(function(key){
-    var spec = SPECS[key], patch = PT_LAYOUT[key];
-    if(!spec) return;
-    if(patch.viewBox) spec.viewBox = patch.viewBox;
-    (spec.nodes || []).forEach(function(n){
-      var p = patch.nodes && patch.nodes[n.id];
-      if(!p) return;
-      if(p.x != null) n.x = p.x;
-      if(p.w != null) n.w = p.w;
-    });
-    (spec.hubs || []).forEach(function(h){
-      var p = patch.hubs && patch.hubs[h.id];
-      if(!p) return;
-      if(p.x != null) h.x = p.x;
-      if(p.y != null) h.y = p.y;
-    });
-  });
-}
-
-var SPECS = {};
-
-SPECS.scenarioLead = {
-  viewBox:[1200,420],
-  nodes:[
-    {id:'lead',  label:'New Lead',        x:16,  cy:210, w:116, kind:'trigger', icon:'event', role:ROLES.lead},
-    {id:'cap',   label:'Capture',         x:156, cy:210, w:112, kind:'std',     icon:'task',  role:'The details are recorded once, in a consistent shape, with nobody retyping them.'},
-    {id:'crm',   label:'CRM Update',      x:296, cy:210, w:136, kind:'std',     icon:'db',    role:ROLES.crm},
-    {id:'qual',  label:'Qualification',   x:460, cy:210, w:150, kind:'ai',      icon:'ai',    role:ROLES.qual},
-    {id:'sched', label:'Scheduling',      x:678, cy:100, w:132, kind:'std',     icon:'cal',   role:ROLES.sched},
-    {id:'resp',  label:'Reply Assistant', x:674, cy:320, w:166, kind:'ai',      icon:'mail',  role:ROLES.reply},
-    {id:'review',label:'Owner Review',    x:894, cy:210, w:142, kind:'human',   icon:'human', role:ROLES.review},
-    {id:'follow',label:'Follow-up',       x:1068,cy:210, w:122, kind:'std',     icon:'clock', role:'Chases the ones that go quiet, on a schedule you set once.'}
-  ],
-  hubs:[{id:'h1', x:644, y:210},{id:'h2', x:866, y:210}],
-  links:[
-    {from:'lead',to:'cap',w:2.1},{from:'cap',to:'crm',w:2.05},{from:'crm',to:'qual',w:2.0},
-    {from:'qual',to:'h1',w:1.9},{from:'h1',to:'sched',w:1.3},{from:'h1',to:'resp',w:1.35},
-    {from:'sched',to:'h2',w:1.25},{from:'resp',to:'h2',w:1.3},
-    {from:'h2',to:'review',w:1.8},{from:'review',to:'follow',w:1.6}
-  ]
-};
-
-SPECS.scenarioClient = {
-  viewBox:[1200,420],
-  nodes:[
-    {id:'client',label:'New Client',    x:30,  cy:210, w:128, kind:'trigger', icon:'event', role:'A signed proposal or a closed deal. Onboarding starts itself.'},
-    {id:'intake',label:'Intake',        x:200, cy:210, w:100, kind:'std',     icon:'task',  role:'One form, asked once, feeding everything after it.'},
-    {id:'docs',  label:'Documents',     x:376, cy:92,  w:126, kind:'std',     icon:'doc',   role:'Asks for what is missing and chases it until it arrives.'},
-    {id:'tasks', label:'Internal Tasks',x:376, cy:328, w:156, kind:'std',     icon:'task',  role:'Assigns the setup work to the right people with the right dates.'},
-    {id:'proc',  label:'Document Check',x:600, cy:210, w:160, kind:'ai',      icon:'ai',    role:'Reads what came in, pulls out what matters and flags anything that looks wrong.'},
-    {id:'appr',  label:'Approval',      x:806, cy:210, w:124, kind:'human',   icon:'human', role:'A person confirms before anything reaches the client.'},
-    {id:'upd',   label:'Client Update', x:976, cy:210, w:150, kind:'std',     icon:'mail',  role:'The client hears where things stand without having to ask.'}
-  ],
-  hubs:[{id:'h1', x:338, y:210},{id:'h2', x:564, y:210}],
-  links:[
-    {from:'client',to:'intake',w:2.0},{from:'intake',to:'h1',w:1.9},
-    {from:'h1',to:'docs',w:1.3},{from:'h1',to:'tasks',w:1.3},
-    {from:'docs',to:'h2',w:1.3},{from:'tasks',to:'h2',w:1.3},
-    {from:'h2',to:'proc',w:1.9},{from:'proc',to:'appr',w:1.8},{from:'appr',to:'upd',w:1.7}
-  ]
-};
-
-SPECS.scenarioService = {
-  viewBox:[1200,420],
-  nodes:[
-    {id:'ref',   label:'Referral',        x:20,   cy:210, w:116, kind:'trigger', icon:'event', role:'However the work arrives: a partner, a portal or a phone call.'},
-    {id:'intake',label:'Intake',          x:168,  cy:210, w:100, kind:'std',     icon:'task',  role:'Captured once, organized, and sent to the right place.'},
-    {id:'sched', label:'Scheduling',      x:302,  cy:210, w:132, kind:'std',     icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
-    {id:'svc',   label:'Service',         x:468,  cy:210, w:108, kind:'std',     icon:'users', role:'The work your team is there to do.'},
-    {id:'rep',   label:'Report Assistant',x:652,  cy:96,  w:176, kind:'ai',      icon:'chart', role:'Prepares the report from what the system already recorded.'},
-    {id:'inv',   label:'Invoice',         x:652,  cy:324, w:112, kind:'std',     icon:'card',  role:'Raised from the work the system already recorded.'},
-    {id:'appr',  label:'Approval',        x:860,  cy:96,  w:124, kind:'human',   icon:'human', role:'You review the report before it goes to the client.'},
-    {id:'deliv', label:'Client Delivery', x:1032, cy:210, w:164, kind:'std',     icon:'mail',  role:'Report and invoice reach the client together, on time.'}
-  ],
-  hubs:[{id:'h1', x:614, y:210},{id:'h2', x:1012, y:210}],
-  links:[
-    {from:'ref',to:'intake',w:2.0},{from:'intake',to:'sched',w:1.95},{from:'sched',to:'svc',w:1.9},
-    {from:'svc',to:'h1',w:1.85},{from:'h1',to:'rep',w:1.3},{from:'h1',to:'inv',w:1.2},
-    {from:'rep',to:'appr',w:1.25},{from:'appr',to:'h2',w:1.2},{from:'inv',to:'h2',w:1.15},
-    {from:'h2',to:'deliv',w:1.8}
-  ]
-};
-
-/* The tools a business already runs. First they stand alone; then the
-   connections grow between them; then information moves. */
-SPECS.transform = {
-  viewBox:[950,340],
-  nodes:[
-    {id:'inbox', label:'Inbox',        x:40,  cy:160, w:110, kind:'std', icon:'mail',  role:'Requests arrive here and are routed to the right place.'},
-    {id:'sheet', label:'Spreadsheets', x:268, cy:56,  w:146, kind:'std', icon:'sheet', role:'Kept current by the system instead of by hand.'},
-    {id:'docs',  label:'Documents',    x:268, cy:264, w:136, kind:'std', icon:'doc',   role:'Filed once, in the right place, and linked to the record.'},
-    {id:'crm',   label:'CRM',          x:560, cy:160, w:92,  kind:'std', icon:'db',    role:'The shared record every other tool reads from and updates.'},
-    {id:'cal',   label:'Calendar',     x:770, cy:56,  w:124, kind:'std', icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
-    {id:'inv',   label:'Invoicing',    x:770, cy:264, w:124, kind:'std', icon:'card',  role:'Raised from the work the system already recorded.'}
-  ],
-  links:[
-    {from:'inbox',to:'sheet',w:1.5},{from:'inbox',to:'docs',w:1.5},
-    {from:'sheet',to:'crm',w:1.4},{from:'docs',to:'crm',w:1.4},
-    {from:'crm',to:'cal',w:1.3},{from:'crm',to:'inv',w:1.3}
-  ]
-};
-
-/* ---- the same systems, recomposed for a phone ----------------------
-   Not the desktop layout scaled down: at 1200 units across, labels land
-   under 9px on a phone. These run vertically, keep every node inside the
-   viewport, and hold the branch points as real branches. */
-SPECS.scenarioLeadMobile = {
-  viewBox:[360,600], vertical:true, linkMs:520,
-  nodes:[
-    {id:'lead',  label:'New Lead',        x:84,  cy:34,  w:150, kind:'trigger', icon:'event', role:ROLES.lead},
-    {id:'cap',   label:'Capture',         x:94,  cy:110, w:130, kind:'std',     icon:'task',  role:'The details are recorded once, in a consistent shape, with nobody retyping them.'},
-    {id:'crm',   label:'CRM Update',      x:84,  cy:186, w:152, kind:'std',     icon:'db',    role:ROLES.crm},
-    {id:'qual',  label:'Qualification',   x:84,  cy:262, w:160, kind:'ai',      icon:'ai',    role:ROLES.qual},
-    {id:'sched', label:'Scheduling',      x:10,  cy:368, w:150, kind:'std',     icon:'cal',   role:ROLES.sched},
-    {id:'resp',  label:'Reply Assistant', x:180, cy:368, w:172, kind:'ai',      icon:'mail',  role:ROLES.reply},
-    {id:'review',label:'Owner Review',    x:90,  cy:490, w:155, kind:'human',   icon:'human', role:ROLES.review},
-    {id:'follow',label:'Follow-up',       x:100, cy:566, w:135, kind:'std',     icon:'clock', role:'Chases the ones that go quiet, on a schedule you set once.'}
-  ],
-  hubs:[{id:'h1', x:180, y:318},{id:'h2', x:180, y:440}],
-  links:[
-    {from:'lead',to:'cap',w:2.0},{from:'cap',to:'crm',w:1.95},{from:'crm',to:'qual',w:1.9},
-    {from:'qual',to:'h1',w:1.85},{from:'h1',to:'sched',w:1.3},{from:'h1',to:'resp',w:1.3},
-    {from:'sched',to:'h2',w:1.3},{from:'resp',to:'h2',w:1.3},
-    {from:'h2',to:'review',w:1.7},{from:'review',to:'follow',w:1.2}
-  ]
-};
-
-SPECS.scenarioClientMobile = {
-  viewBox:[360,534], vertical:true, linkMs:520,
-  nodes:[
-    {id:'client',label:'New Client',    x:84,  cy:34,  w:150, kind:'trigger', icon:'event', role:'A signed proposal or a closed deal. Onboarding starts itself.'},
-    {id:'intake',label:'Intake',        x:94,  cy:114, w:130, kind:'std',     icon:'task',  role:'One form, asked once, feeding everything after it.'},
-    {id:'docs',  label:'Documents',     x:10,  cy:216, w:150, kind:'std',     icon:'doc',   role:'Asks for what is missing and chases it until it arrives.'},
-    {id:'tasks', label:'Internal Tasks',x:192, cy:216, w:158, kind:'std',     icon:'task',  role:'Assigns the setup work to the right people with the right dates.'},
-    {id:'proc',  label:'Document Check',x:84,  cy:340, w:166, kind:'ai',      icon:'ai',    role:'Reads what came in, pulls out what matters and flags anything that looks wrong.'},
-    {id:'appr',  label:'Approval',      x:100, cy:412, w:130, kind:'human',   icon:'human', role:'A person confirms before anything reaches the client.'},
-    {id:'upd',   label:'Client Update', x:90,  cy:490, w:158, kind:'std',     icon:'mail',  role:'The client hears where things stand without having to ask.'}
-  ],
-  hubs:[{id:'h1', x:180, y:166},{id:'h2', x:180, y:288}],
-  links:[
-    {from:'client',to:'intake',w:2.0},{from:'intake',to:'h1',w:1.9},
-    {from:'h1',to:'docs',w:1.3},{from:'h1',to:'tasks',w:1.3},
-    {from:'docs',to:'h2',w:1.3},{from:'tasks',to:'h2',w:1.3},
-    {from:'h2',to:'proc',w:1.9},{from:'proc',to:'appr',w:1.8},{from:'appr',to:'upd',w:1.7}
-  ]
-};
-
-SPECS.scenarioServiceMobile = {
-  viewBox:[360,606], vertical:true, linkMs:520,
-  nodes:[
-    {id:'ref',   label:'Referral',        x:84,  cy:34,  w:150, kind:'trigger', icon:'event', role:'However the work arrives: a partner, a portal or a phone call.'},
-    {id:'intake',label:'Intake',          x:94,  cy:106, w:130, kind:'std',     icon:'task',  role:'Captured once, organized, and sent to the right place.'},
-    {id:'sched', label:'Scheduling',      x:90,  cy:178, w:140, kind:'std',     icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
-    {id:'svc',   label:'Service',         x:100, cy:250, w:126, kind:'std',     icon:'users', role:'The work your team is there to do.'},
-    {id:'rep',   label:'Report Assistant',x:6,   cy:352, w:178, kind:'ai',      icon:'chart', role:'Prepares the report from what the system already recorded.'},
-    {id:'inv',   label:'Invoice',         x:220, cy:352, w:126, kind:'std',     icon:'card',  role:'Raised from the work the system already recorded.'},
-    {id:'appr',  label:'Approval',        x:26,  cy:436, w:140, kind:'human',   icon:'human', role:'You review the report before it goes to the client.'},
-    {id:'deliv', label:'Client Delivery', x:90,  cy:562, w:162, kind:'std',     icon:'mail',  role:'Report and invoice reach the client together, on time.'}
-  ],
-  hubs:[{id:'h1', x:180, y:302},{id:'h2', x:180, y:504}],
-  links:[
-    {from:'ref',to:'intake',w:2.0},{from:'intake',to:'sched',w:1.95},{from:'sched',to:'svc',w:1.9},
-    {from:'svc',to:'h1',w:1.85},{from:'h1',to:'rep',w:1.3},{from:'h1',to:'inv',w:1.2},
-    {from:'rep',to:'appr',w:1.25},{from:'appr',to:'h2',w:1.2},{from:'inv',to:'h2',w:1.15},
-    {from:'h2',to:'deliv',w:1.8}
-  ]
-};
-
-SPECS.transformMobile = {
-  viewBox:[360,440], vertical:true, linkMs:520,
-  nodes:[
-    {id:'inbox', label:'Inbox',        x:120, cy:34,  w:120, kind:'std', icon:'mail',  role:'Requests arrive here and are routed to the right place.'},
-    {id:'sheet', label:'Spreadsheets', x:10,  cy:150, w:156, kind:'std', icon:'sheet', role:'Kept current by the system instead of by hand.'},
-    {id:'docs',  label:'Documents',    x:194, cy:150, w:156, kind:'std', icon:'doc',   role:'Filed once, in the right place, and linked to the record.'},
-    {id:'crm',   label:'CRM',          x:125, cy:270, w:110, kind:'std', icon:'db',    role:'The shared record every other tool reads from and updates.'},
-    {id:'cal',   label:'Calendar',     x:10,  cy:396, w:156, kind:'std', icon:'cal',   role:'Booked against real availability and confirmed automatically.'},
-    {id:'inv',   label:'Invoicing',    x:194, cy:396, w:156, kind:'std', icon:'card',  role:'Raised from the work the system already recorded.'}
-  ],
-  links:[
-    {from:'inbox',to:'sheet',w:1.5},{from:'inbox',to:'docs',w:1.5},
-    {from:'sheet',to:'crm',w:1.4},{from:'docs',to:'crm',w:1.4},
-    {from:'crm',to:'cal',w:1.3},{from:'crm',to:'inv',w:1.3}
-  ]
-};
-
-/* Capacity. Several kinds of recurring work consolidate into one assisted
-   route; what that releases is redirected to the work that moves the
-   business. The outcome nodes are people's work, so they carry the warm
-   human edge. Nothing here is money: it is time and attention. */
-var CAP_ROLES = {
-  follow:   'Reminders and replies that someone has to remember to send.',
-  entry:    'The same details typed into more than one place.',
-  sched:    'Back-and-forth to find a time that works.',
-  report:   'Numbers gathered by hand every week or month.',
-  assist:   'Handles the recurring steps, with review points where a person should decide.',
-  capacity: 'Time and attention that no longer go to repetitive work.',
-  clients:  'More time for the clients you already serve.',
-  sales:    'Room to follow up on opportunities and new conversations.',
-  strategy: 'Time to plan ahead instead of reacting.',
-  delivery: 'More attention for the quality of the work itself.'
-};
-SPECS.capacity = {
-  viewBox:[712,330], linkMs:540,
-  nodes:[
-    {id:'t1', label:'Follow-ups', x:8,   cy:45,  w:136, kind:'std',     icon:'mail',   role:CAP_ROLES.follow},
-    {id:'t2', label:'Data entry', x:8,   cy:125, w:136, kind:'std',     icon:'sheet',  role:CAP_ROLES.entry},
-    {id:'t3', label:'Scheduling', x:8,   cy:205, w:136, kind:'std',     icon:'cal',    role:CAP_ROLES.sched},
-    {id:'t4', label:'Reporting',  x:8,   cy:285, w:136, kind:'std',     icon:'doc',    role:CAP_ROLES.report},
-    {id:'as', label:'Assistant',  x:232, cy:165, w:122, kind:'ai',      icon:'ai',     role:CAP_ROLES.assist},
-    {id:'cp', label:'Capacity',   x:384, cy:165, w:116, kind:'trigger', icon:'event',  role:CAP_ROLES.capacity},
-    {id:'o1', label:'Clients',    x:572, cy:45,  w:116, kind:'human',   icon:'users',  role:CAP_ROLES.clients},
-    {id:'o2', label:'Sales',      x:572, cy:125, w:116, kind:'human',   icon:'chart',  role:CAP_ROLES.sales},
-    {id:'o3', label:'Strategy',   x:572, cy:205, w:116, kind:'human',   icon:'layers', role:CAP_ROLES.strategy},
-    {id:'o4', label:'Delivery',   x:572, cy:285, w:116, kind:'human',   icon:'task',   role:CAP_ROLES.delivery}
-  ],
-  hubs:[{id:'h1', x:204, y:165},{id:'h2', x:540, y:165}],
-  links:[
-    {from:'t1',to:'h1',w:1.1},{from:'t2',to:'h1',w:1.1},{from:'t3',to:'h1',w:1.1},{from:'t4',to:'h1',w:1.1},
-    {from:'h1',to:'as',w:2.0},{from:'as',to:'cp',w:2.0},{from:'cp',to:'h2',w:1.9},
-    {from:'h2',to:'o1',w:1.3},{from:'h2',to:'o2',w:1.3},{from:'h2',to:'o3',w:1.3},{from:'h2',to:'o4',w:1.3}
-  ]
-};
-/* On a phone the four tasks and four outcomes sit in pairs. Each pair
-   above feeds a hub whose stem drops through the gap in the pair below,
-   so no connection ever runs underneath a node. */
-SPECS.capacityMobile = {
-  viewBox:[360,532], vertical:true, linkMs:480,
-  nodes:[
-    {id:'t1', label:'Follow-ups', x:6,   cy:30,  w:166, kind:'std',     icon:'mail',   role:CAP_ROLES.follow},
-    {id:'t2', label:'Data entry', x:188, cy:30,  w:166, kind:'std',     icon:'sheet',  role:CAP_ROLES.entry},
-    {id:'t3', label:'Scheduling', x:6,   cy:130, w:166, kind:'std',     icon:'cal',    role:CAP_ROLES.sched},
-    {id:'t4', label:'Reporting',  x:188, cy:130, w:166, kind:'std',     icon:'doc',    role:CAP_ROLES.report},
-    {id:'as', label:'Assistant',  x:110, cy:226, w:140, kind:'ai',      icon:'ai',     role:CAP_ROLES.assist},
-    {id:'cp', label:'Capacity',   x:110, cy:290, w:140, kind:'trigger', icon:'event',  role:CAP_ROLES.capacity},
-    {id:'o1', label:'Clients',    x:6,   cy:400, w:166, kind:'human',   icon:'users',  role:CAP_ROLES.clients},
-    {id:'o2', label:'Sales',      x:188, cy:400, w:166, kind:'human',   icon:'chart',  role:CAP_ROLES.sales},
-    {id:'o3', label:'Strategy',   x:6,   cy:506, w:166, kind:'human',   icon:'layers', role:CAP_ROLES.strategy},
-    {id:'o4', label:'Delivery',   x:188, cy:506, w:166, kind:'human',   icon:'task',   role:CAP_ROLES.delivery}
-  ],
-  hubs:[{id:'hA', x:180, y:84},{id:'h1', x:180, y:186},{id:'h2', x:180, y:346},{id:'hC', x:180, y:456}],
-  links:[
-    {from:'t1',to:'hA',w:1.1},{from:'t2',to:'hA',w:1.1},{from:'hA',to:'h1',w:1.4},
-    {from:'t3',to:'h1',w:1.1},{from:'t4',to:'h1',w:1.1},
-    {from:'h1',to:'as',w:2.0},{from:'as',to:'cp',w:2.0},{from:'cp',to:'h2',w:1.9},
-    {from:'h2',to:'o1',w:1.3},{from:'h2',to:'o2',w:1.3},{from:'h2',to:'hC',w:1.4},
-    {from:'hC',to:'o3',w:1.3},{from:'hC',to:'o4',w:1.3}
-  ]
-};
-
-/* What good assistance brings together, converging into BOTAN.IA.
-   Vertical routing: three across the top, the mark below them. */
-SPECS.cta = {
-  viewBox:[640,240], vertical:true, linkMs:700,
-  nodes:[
-    {id:'ctx',  label:'Context',  x:101, cy:44,  w:110, kind:'std',     icon:'doc'},
-    {id:'judg', label:'Judgment', x:261, cy:44,  w:118, kind:'human',   icon:'human'},
-    {id:'sys',  label:'Systems',  x:429, cy:44,  w:110, kind:'ai',      icon:'layers'},
-    {id:'bot',  label:'BOTAN.IA', x:230, cy:196, w:180, kind:'trigger', icon:'seed', mark:true}
-  ],
-  hubs:[{id:'h', x:320, y:118}],
-  links:[
-    {from:'ctx',to:'h',w:1.2},{from:'judg',to:'h',w:1.2},{from:'sys',to:'h',w:1.2},
-    {from:'h',to:'bot',w:2.1}
-  ]
-};
-
-/* Same three ideas, packed tighter so the labels still read at phone
-   width. Scaling the desktop layout down put them at under 8px. */
-SPECS.ctaMobile = {
-  viewBox:[443,230], vertical:true, linkMs:700,
-  nodes:[
-    {id:'ctx',  label:'Context',  x:18,  cy:44,  w:122, kind:'std',     icon:'doc'},
-    {id:'judg', label:'Judgment', x:160, cy:44,  w:124, kind:'human',   icon:'human'},
-    {id:'sys',  label:'Systems',  x:303, cy:44,  w:122, kind:'ai',      icon:'layers'},
-    {id:'bot',  label:'BOTAN.IA', x:131, cy:186, w:180, kind:'trigger', icon:'seed', mark:true}
-  ],
-  hubs:[{id:'h', x:221, y:112}],
-  links:[
-    {from:'ctx',to:'h',w:1.2},{from:'judg',to:'h',w:1.2},{from:'sys',to:'h',w:1.2},
-    {from:'h',to:'bot',w:2.1}
-  ]
-};
-
-/* ============================================================
-   header state and logo light
+   header
    ============================================================ */
 function initHeader(){
-  var header = document.querySelector('header');
+  var header = document.getElementById('siteHeader');
+  var toggle = document.getElementById('navToggle');
   if(!header) return;
-  var on = false;
-  function check(){
-    var s = window.scrollY > 6;
-    if(s !== on){ on = s; header.classList.toggle('is-scrolled', s); }
+  function stuck(){ header.classList.toggle('is-stuck', window.scrollY > 12); }
+  stuck();
+  window.addEventListener('scroll', stuck, { passive:true });
+  if(!toggle) return;
+  function setOpen(open){
+    header.classList.toggle('nav-open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
-  check();
-  window.addEventListener('scroll', check, { passive: true });
-}
-
-/* The logo receives one pass of light on the first page of a visit.
-   "First page" is read from the referrer rather than stored: the privacy
-   page states that the site keeps nothing in the browser, and that stays
-   true. Moving between pages of the site does not repeat it. */
-function initLogoLight(){
-  if(REDUCED) return;
-  try{
-    if(document.referrer && new URL(document.referrer).origin === window.location.origin) return;
-  }catch(err){ /* unparseable referrer: treat as an arrival */ }
-  document.documentElement.classList.add('logo-pass');
+  toggle.addEventListener('click', function(){ setOpen(!header.classList.contains('nav-open')); });
+  header.addEventListener('click', function(e){ if(e.target.closest && e.target.closest('.site-nav a')) setOpen(false); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') setOpen(false); });
 }
 
 /* ============================================================
-   hero parallax
-   Layers of the structural figure move at slightly different
-   rates while the hero is on screen. Desktop only: on a phone it
-   would compete with the scroll itself.
+   hero: light passes through the scene once and it comes to rest
+   on the still. After that only the pointer and the scroll move it.
    ============================================================ */
-function initParallax(){
-  if(REDUCED) return;
-  var hero = document.querySelector('.hero');
-  if(!hero) return;
-  var layers = Array.prototype.slice.call(hero.querySelectorAll('.hero-visual [data-depth]'));
-  /* The symbol watermark settles slower than the page as it scrolls, so
-     it reads as further back: a slow parallax, felt more than seen. It
-     never moves on its own. */
-  var mark = hero.querySelector('.hero-watermark svg');
-  if(!layers.length && !mark) return;
-  var mq = window.matchMedia('(min-width: 1024px)');
+function initHero(){
+  var hero = document.getElementById('top');
+  if(!hero || !hero.classList.contains('hero')) return;
+  var video = document.getElementById('heroVideo');
+  var saver = navigator.connection && navigator.connection.saveData;
+
+  if(video && !STILL && !HOLD && !saver){
+    var wide = window.innerWidth * (window.devicePixelRatio || 1) > 1500;
+    var src = video.getAttribute(mqSmall.matches ? 'data-mobile' : wide ? 'data-desktop' : 'data-desktop-small');
+    var over = false;
+    var finish = function(){
+      if(over) return;
+      over = true;
+      hero.classList.remove('is-playing');
+      /* the clip ends on the still, so the fade is invisible; then free the decoder */
+      setTimeout(function(){ video.removeAttribute('src'); video.load(); }, 1100);
+    };
+    video.addEventListener('playing', function(){ if(!over) hero.classList.add('is-playing'); });
+    video.addEventListener('ended', finish);
+    video.addEventListener('error', finish);
+    video.src = src;
+    var started = video.play();
+    if(started && started.catch) started.catch(finish);
+    setTimeout(function(){ if(!hero.classList.contains('is-playing')) finish(); }, 2600);
+  }
+
+  if(FLAT) return;
+  /* a fine pointer shifts the scene and its light by a few pixels */
+  if(window.matchMedia('(hover: hover) and (pointer: fine)').matches){
+    var tx = 0, ty = 0, cx = 0, cy = 0, raf = 0;
+    var step = function(){
+      cx += (tx - cx) * .06; cy += (ty - cy) * .06;
+      hero.style.setProperty('--px', (cx * -11).toFixed(2) + 'px');
+      hero.style.setProperty('--py', (cy * -6).toFixed(2) + 'px');
+      hero.style.setProperty('--lx', (cx * 4).toFixed(2) + '%');
+      hero.style.setProperty('--ly', (cy * 3).toFixed(2) + '%');
+      raf = (Math.abs(tx - cx) + Math.abs(ty - cy) > .002) ? requestAnimationFrame(step) : 0;
+    };
+    hero.addEventListener('pointermove', function(e){
+      var r = hero.getBoundingClientRect();
+      tx = (e.clientX - r.left) / r.width * 2 - 1;
+      ty = (e.clientY - r.top) / r.height * 2 - 1;
+      if(!raf) raf = requestAnimationFrame(step);
+    });
+    hero.addEventListener('pointerleave', function(){ tx = 0; ty = 0; if(!raf) raf = requestAnimationFrame(step); });
+  }
+  /* the scene falls behind the page a little as it scrolls away */
   var ticking = false;
-  function update(){
-    ticking = false;
-    var y = window.scrollY;
-    var limit = hero.getBoundingClientRect().bottom + y;
-    if(!mq.matches){
-      layers.forEach(function(l){ l.style.transform = ''; });
-      if(mark) mark.style.transform = '';
-      return;
-    }
-    if(y > limit) return;
-    layers.forEach(function(l){
-      var d = parseFloat(l.getAttribute('data-depth')) || 0;
-      l.style.transform = 'translate3d(0,' + (y * d).toFixed(2) + 'px,0)';
+  window.addEventListener('scroll', function(){
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      ticking = false;
+      var y = window.scrollY;
+      if(y < hero.offsetHeight) hero.style.setProperty('--sy', (y * .14).toFixed(1) + 'px');
     });
-    if(mark) mark.style.transform = 'translate3d(0,' + (y * 0.05).toFixed(2) + 'px,0)';
-  }
-  function onScroll(){ if(!ticking){ ticking = true; requestAnimationFrame(update); } }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onScroll);
-  update();
+  }, { passive:true });
 }
 
 /* ============================================================
-   section nav
-   Measures the sticky chrome so anchors land in the right place,
-   then marks the section the reader is currently in.
+   system builder: nodes and paths from a small description
+   node kinds: in / out (entry points and outcomes), join, hub, gate
+   node states: hidden, dormant, active, processing, decision, complete
    ============================================================ */
-function initSectionNav(){
-  var header = document.querySelector('header');
-  var nav = document.getElementById('sectionNav');
-  var root = document.documentElement;
+var RADIUS = { hub:24, gate:13, join:5 };
+var LABEL = {
+  l:  function(r){ return { x:-(r + 14), y:5.5, a:'end' }; },
+  r:  function(r){ return { x:r + 14, y:5.5, a:'start' }; },
+  b:  function(r){ return { x:0, y:r + 30, a:'middle' }; },
+  tl: function(r){ return { x:-r, y:-(r + 9), a:'start' }; },
+  tr: function(r){ return { x:r, y:-(r + 9), a:'end' }; }
+};
 
-  function measure(){
-    var h = header ? header.getBoundingClientRect().height : 0;
-    var s = nav ? nav.getBoundingClientRect().height : 0;
-    root.style.setProperty('--header-h', h + 'px');
-    root.style.setProperty('--chrome-h', (h + s) + 'px');
+function nodeMarkup(n){
+  var r = n.r || RADIUS[n.kind] || 8;
+  var halo = n.kind === 'hub' ? r * 2.75 : n.kind === 'gate' ? 58 : 30;
+  var s = '<g class="nd nd-' + n.kind + (n.brief ? ' is-brief' : '') + (n.alt ? ' has-alt' : '') + '" data-id="' + n.id + '" data-s="hidden" transform="translate(' + n.x + ' ' + n.y + ')"><g class="nd-pos">';
+  if(n.kind !== 'join') s += '<circle class="nd-halo" r="' + halo + '"/>';
+  s += '<g class="nd-body"><circle class="nd-ring" r="' + r + '"/>';
+  if(n.kind === 'hub' || n.kind === 'gate') s += '<circle class="nd-fill" r="' + r + '"/>';
+  if(n.kind !== 'join') s += '<circle class="nd-core" r="' + (n.kind === 'hub' ? r * .21 : r * .4).toFixed(1) + '"/>';
+  s += '</g>';
+  if(n.label){
+    var L = LABEL[n.la || 'r'](r);
+    var at = ' x="' + L.x + '" y="' + L.y + '" text-anchor="' + L.a + '">';
+    s += '<text class="nd-label nd-main"' + at + n.label + '</text>';
+    if(n.alt) s += '<text class="nd-label nd-alt"' + at + n.alt + '</text>';
   }
-  measure();
-  var rt;
-  window.addEventListener('resize', function(){
-    clearTimeout(rt); rt = setTimeout(measure, 200);
+  return s + '</g></g>';
+}
+
+function build(host, cfg){
+  var s = '<svg viewBox="' + cfg.vb + '" preserveAspectRatio="' + (cfg.fit || 'xMidYMid meet') + '" aria-hidden="true" focusable="false"><g>';
+  (cfg.paths || []).forEach(function(p){ s += '<path class="pth ' + (p.cls || '') + '" data-id="' + p.id + '" pathLength="1" d="' + p.d + '"/>'; });
+  s += '</g><g>';
+  cfg.nodes.forEach(function(n){ s += nodeMarkup(n); });
+  host.innerHTML = s + '</g></svg>';
+  var sys = { host:host, n:{}, p:{} };
+  cfg.nodes.forEach(function(n){
+    var el = host.querySelector('.nd[data-id="' + n.id + '"]');
+    sys.n[n.id] = { el:el, pos:el.firstChild, s:'hidden', dx:n.dx || 0, dy:n.dy || 0, k:-1 };
   });
-
-  /* Arriving on a link such as /#calculator, the browser jumps before the
-     diagrams above it have taken their height. Once the page has loaded,
-     land the section again, unless the reader has already moved. */
-  var moved = false;
-  ['wheel', 'touchstart', 'keydown'].forEach(function(t){
-    window.addEventListener(t, function(){ moved = true; }, { once: true, passive: true });
+  (cfg.paths || []).forEach(function(p){
+    sys.p[p.id] = { el:host.querySelector('.pth[data-id="' + p.id + '"]'), t:-1, q:false };
   });
-  window.addEventListener('load', function(){
-    var id = location.hash.slice(1);
-    var t = id && document.getElementById(id);
-    if(!t || moved) return;
-    var sb = root.style.scrollBehavior;
-    root.style.scrollBehavior = 'auto';
-    t.scrollIntoView();
-    root.style.scrollBehavior = sb;
-  });
-  if(!nav) return;
-
-  var links = Array.prototype.slice.call(nav.querySelectorAll('a'));
-  var targets = links.map(function(a){
-    return document.querySelector(a.getAttribute('href'));
-  });
-
-  function current(){
-    /* A clicked anchor lands its section exactly on its scroll-margin-top,
-       which differs by section role. Sub-pixel layout can put it a
-       fraction below; the tolerance covers it. */
-    var found = -1;
-    for(var i = 0; i < targets.length; i++){
-      var t = targets[i];
-      if(!t) continue;
-      var line = (parseFloat(getComputedStyle(t).scrollMarginTop) || 0) + 3;
-      if(t.getBoundingClientRect().top <= line) found = i;
-    }
-    return found;
-  }
-
-  var active = -2;
-  function mark(i){
-    if(i === active) return;
-    active = i;
-    links.forEach(function(a, n){
-      if(n === i) a.setAttribute('aria-current', 'true');
-      else a.removeAttribute('aria-current');
-    });
-    /* keep the active item in view on a narrow strip */
-    if(i >= 0){
-      var a = links[i], box = nav.querySelector('.sectionnav-scroll');
-      var ar = a.getBoundingClientRect(), br = box.getBoundingClientRect();
-      if(ar.left < br.left || ar.right > br.right){
-        box.scrollTo({ left: a.offsetLeft - box.clientWidth / 2 + a.offsetWidth / 2,
-                       behavior: REDUCED ? 'auto' : 'smooth' });
-      }
-    }
-  }
-
-  function paint(){ mark(current()); }
-
-  /* Clicking a link marks it at once rather than waiting for the smooth
-     scroll to arrive, and the spy is held off until the scroll settles. */
-  var holdUntil = 0;
-  links.forEach(function(a, i){
-    a.addEventListener('click', function(){
-      mark(i);
-      holdUntil = REDUCED ? 0 : Date.now() + 800;
-    });
-  });
-  function release(){ holdUntil = 0; }
-  window.addEventListener('wheel', release, { passive: true });
-  window.addEventListener('touchstart', release, { passive: true });
-  window.addEventListener('keydown', function(e){
-    if(e.key === 'PageDown' || e.key === 'PageUp' || e.key === 'Home' || e.key === 'End' ||
-       e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === ' ') release();
-  });
-
-  /* Throttled on a timestamp rather than a requestAnimationFrame flag:
-     rAF is paused in a background tab, and a guard set just before a
-     paused frame never cleared, which killed the spy. */
-  var last = 0, tail = null;
-  function onScroll(){
-    var now = Date.now();
-    if(now - last >= 80){
-      last = now;
-      if(now >= holdUntil) paint();
-    } else {
-      clearTimeout(tail);
-      tail = setTimeout(function(){
-        last = Date.now();
-        if(last >= holdUntil) paint();
-      }, 90);
-    }
-  }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  paint();
+  return sys;
+}
+function state(sys, id, s){
+  var n = sys.n[id];
+  if(n && n.s !== s){ n.s = s; n.el.setAttribute('data-s', s); }
+}
+/* k = 1 is the loose position, 0 is on the grid */
+function offset(sys, id, k){
+  var n = sys.n[id];
+  if(!n) return;
+  k = Math.round(k * 200) / 200;
+  if(n.k === k) return;
+  n.k = k;
+  n.pos.style.transform = k ? 'translate(' + (n.dx * k).toFixed(1) + 'px,' + (n.dy * k).toFixed(1) + 'px)' : '';
+}
+/* t = 0 nothing drawn, 1 the whole path */
+function draw(sys, id, t){
+  var p = sys.p[id];
+  if(!p) return;
+  t = Math.round(t * 500) / 500;
+  if(p.t === t) return;
+  p.t = t;
+  p.el.style.strokeDashoffset = (1 - t).toFixed(3);
+  p.el.style.opacity = t > 0 ? 1 : 0;
+}
+function quiet(sys, id, on){
+  var p = sys.p[id];
+  if(p && p.q !== on){ p.q = on; p.el.classList.toggle('is-quiet', on); }
 }
 
 /* ============================================================
-   reveals
-   Content rises a little and fades in as it arrives. Siblings
-   arrive in a short sequence rather than all at once.
+   autoplay: a system plays once it is well inside the screen, and
+   returns to its start only after it has left the screen entirely
    ============================================================ */
-function initReveals(){
-  var targets = document.querySelectorAll('.reveal');
-  if(REDUCED || !('IntersectionObserver' in window)){
-    Array.prototype.forEach.call(targets, function(t){ t.classList.add('in'); });
-    return;
+var players = {};
+var rebuilders = [];
+function autoplay(key, watch, duration, render, hooks){
+  hooks = hooks || {};
+  var pl = { p:0, raf:0, t0:0, playing:false, done:false };
+  function frame(now){
+    pl.p = clamp01((now - pl.t0) / duration);
+    render(pl.p);
+    if(pl.p < 1){ pl.raf = requestAnimationFrame(frame); }
+    else { pl.playing = false; pl.done = true; if(hooks.end) hooks.end(); }
   }
-  /* Anything already on screen at load is shown at once. Meaningful
-     content must never wait on an observer callback to become readable. */
-  var vh = window.innerHeight || document.documentElement.clientHeight;
-  var deferred = [];
-  Array.prototype.forEach.call(targets, function(t){
-    if(t.getBoundingClientRect().top < vh * 0.92) t.classList.add('in');
-    else deferred.push(t);
-  });
-  var io = new IntersectionObserver(function(entries){
+  pl.play = function(){
+    if(pl.playing || pl.done) return;
+    pl.playing = true;
+    pl.t0 = performance.now() - pl.p * duration;
+    pl.raf = requestAnimationFrame(frame);
+  };
+  pl.reset = function(){
+    cancelAnimationFrame(pl.raf);
+    pl.playing = false; pl.done = false; pl.p = 0;
+    if(hooks.reset) hooks.reset();
+    render(0);
+  };
+  pl.seek = function(p){
+    cancelAnimationFrame(pl.raf);
+    pl.playing = false; pl.done = true; pl.p = p;
+    if(hooks.seek) hooks.seek(p); else render(p);
+  };
+  pl.refresh = function(){ if(hooks.seek && pl.done && !pl.playing && pl.sought != null) hooks.seek(pl.sought); else render(pl.p); };
+  players[key] = pl;
+  if(FLAT){ pl.p = 1; pl.done = true; render(1); if(hooks.flat) hooks.flat(); return pl; }
+  render(0);
+  if(HOLD) return pl;
+  if(!('IntersectionObserver' in window)){ pl.p = 1; pl.done = true; render(1); return pl; }
+  var at = hooks.at || .45;
+  new IntersectionObserver(function(entries){
     entries.forEach(function(e){
-      if(!e.isIntersecting) return;
-      var sibs = Array.prototype.filter.call(e.target.parentNode.children, function(n){
-        return n.classList && n.classList.contains('reveal');
-      });
-      var i = Math.max(0, sibs.indexOf(e.target));
-      e.target.style.transitionDelay = Math.min(i * 60, 240) + 'ms';
-      e.target.classList.add('in');
-      io.unobserve(e.target);
-      /* The delay is for arrival only. Left in place it would also slow
-         the hover response on cards. */
-      setTimeout(function(){ e.target.style.transitionDelay = ''; }, 1400);
+      if(e.isIntersecting && e.intersectionRatio >= at) pl.play();
+      else if(!e.isIntersecting && (pl.done || pl.playing)) pl.reset();
     });
-  }, { threshold:0.14, rootMargin:'0px 0px -6% 0px' });
-  deferred.forEach(function(t){ io.observe(t); });
+  }, { threshold:[0, at] }).observe(watch);
+  return pl;
+}
+document.addEventListener('botania:seek', function(e){
+  var d = e.detail || {};
+  if(players[d.id]){ players[d.id].sought = d.p; players[d.id].seek(d.p); }
+});
+
+/* ============================================================
+   friction: many small things, each one asking for attention
+   ============================================================ */
+function initFriction(){
+  var section = document.getElementById('work');
+  var host = document.getElementById('frSystem');
+  if(!section || !host) return;
+  var wide = [[40,36],[330,66],[150,122],[400,158],[60,204],[300,244],[120,298],[420,328],[30,378],[280,404]];
+  var tall = [[28,28],[196,58],[56,92],[214,122],[34,156],[188,186],[62,220],[208,250],[30,284],[200,314]];
+  var sys;
+  function rebuild(){
+    var pts = mqSmall.matches ? tall : wide;
+    sys = build(host, {
+      vb: mqSmall.matches ? '0 0 360 340' : '0 0 600 440',
+      nodes: pts.map(function(pt, i){ return { id:'f' + i, kind:'in', x:pt[0], y:pt[1], label:T.friction[i], la:'r' }; })
+    });
+  }
+  function render(p){
+    for(var i = 0; i < 10; i++){
+      var a = .03 + i * .08;
+      state(sys, 'f' + i, p < a ? 'hidden' : p < a + .13 ? 'active' : 'dormant');
+    }
+    section.classList.toggle('is-done', p >= .88);
+  }
+  rebuild();
+  var pl = autoplay('friction', host, 3800, render);
+  rebuilders.push(function(){ rebuild(); pl.refresh(); });
 }
 
 /* ============================================================
-   page wiring
+   connected work
+   wide: six entry points in two interleaved groups, hub, three outcomes
+   tall: three entry points that carry a second set of names, a centre spine
    ============================================================ */
-function mount(svgId, spec){
-  var svg = document.getElementById(svgId);
-  if(!svg) return null;
-  var sc = SystemCanvas(svg, spec);
-  var plate = svg.closest('.canvas-plate');
-  if(plate && !plate.dataset.roles){ plate.dataset.roles = '1'; initNodeRoles(plate); }
-  syncPanHint(svg);
-  syncLegend(plate, spec);
-  return sc;
+function initConnected(){
+  var section = document.getElementById('connected');
+  var host = document.getElementById('cwSystem');
+  if(!section || !host) return;
+  var words = [].slice.call(section.querySelectorAll('.phases span'));
+  var CW = {
+    wide: {
+      vb: '0 66 1200 388',
+      nodes: [
+        { id:'i1', kind:'in', x:250, y:110, label:T.messages, la:'l', dx:-36, dy:-12 },
+        { id:'i2', kind:'in', x:250, y:230, label:T.bookings, la:'l', dx:28, dy:9 },
+        { id:'i3', kind:'in', x:250, y:350, label:T.clients, la:'l', dx:-20, dy:20 },
+        { id:'i4', kind:'in', x:250, y:170, label:T.payments, la:'l', dx:-16, dy:0 },
+        { id:'i5', kind:'in', x:250, y:290, label:T.documents, la:'l', dx:-16, dy:0 },
+        { id:'i6', kind:'in', x:250, y:410, label:T.team, la:'l', dx:-16, dy:0 },
+        { id:'j1', kind:'join', x:350, y:260 },
+        { id:'hub', kind:'hub', x:600, y:260, label:'BOTAN.IA', la:'b' },
+        { id:'j2', kind:'join', x:800, y:260 },
+        { id:'o1', kind:'out', x:940, y:150, label:T.record, la:'r' },
+        { id:'o2', kind:'out', x:940, y:260, label:T.followup, la:'r' },
+        { id:'o3', kind:'out', x:940, y:370, label:T.calendar, la:'r' }
+      ],
+      paths: [
+        { id:'p-i1', d:'M258 110 H334 Q350 110 350 126 V255' },
+        { id:'p-i4', d:'M258 170 H334 Q350 170 350 186 V255' },
+        { id:'p-i2', d:'M258 230 H338 Q350 230 350 242 V255' },
+        { id:'p-i5', d:'M258 290 H338 Q350 290 350 278 V265' },
+        { id:'p-i3', d:'M258 350 H334 Q350 350 350 334 V265' },
+        { id:'p-i6', d:'M258 410 H334 Q350 410 350 394 V265' },
+        { id:'p-t1', d:'M355 260 H576' },
+        { id:'p-t2', cls:'pth-out', d:'M624 260 H795' },
+        { id:'p-o1', cls:'pth-out', d:'M800 255 V166 Q800 150 816 150 H932' },
+        { id:'p-o2', cls:'pth-out', d:'M805 260 H932' },
+        { id:'p-o3', cls:'pth-out', d:'M800 265 V354 Q800 370 816 370 H932' }
+      ]
+    },
+    tall: {
+      vb: '0 16 360 520',
+      nodes: [
+        { id:'i1', kind:'in', x:34, y:56, label:T.messages, alt:T.payments, la:'tl', dx:-8, dy:-6 },
+        { id:'i2', kind:'in', x:326, y:118, label:T.bookings, alt:T.documents, la:'tr', dx:9, dy:5 },
+        { id:'i3', kind:'in', x:34, y:180, label:T.clients, alt:T.team, la:'tl', dx:-7, dy:8 },
+        { id:'hub', kind:'hub', x:166, y:296, label:'BOTAN.IA', la:'r' },
+        { id:'o1', kind:'out', x:326, y:388, label:T.record, la:'tr' },
+        { id:'o2', kind:'out', x:34, y:448, label:T.followup, la:'tl' },
+        { id:'o3', kind:'out', x:326, y:508, label:T.calendar, la:'tr' }
+      ],
+      paths: [
+        { id:'p-i1', d:'M42 56 H150 Q166 56 166 72 V272' },
+        { id:'p-i2', d:'M318 118 H182 Q166 118 166 134 V272' },
+        { id:'p-i3', d:'M42 180 H150 Q166 180 166 196 V272' },
+        { id:'p-o1', cls:'pth-out', d:'M166 320 V372 Q166 388 182 388 H318' },
+        { id:'p-o2', cls:'pth-out', d:'M166 320 V432 Q166 448 150 448 H42' },
+        { id:'p-o3', cls:'pth-out', d:'M166 320 V492 Q166 508 182 508 H318' }
+      ]
+    }
+  };
+  var sys, tall, phase = -1;
+
+  function rebuild(){
+    tall = mqSmall.matches;
+    sys = build(host, tall ? CW.tall : CW.wide);
+    host.classList.remove('is-swapped');
+    phase = -1;
+  }
+
+  function render(p){
+    var i, id, a, b, c, s;
+    var settle = tall ? .58 : .60;           /* both groups are in, the hub takes over */
+
+    /* first group: present but loose, then awake, lined up, connected */
+    for(i = 0; i < 3; i++){
+      id = 'i' + (i + 1);
+      a = .03 + i * .03;
+      offset(sys, id, 1 - ease(seg(p, .06 + i * .02, .17 + i * .02)));
+      draw(sys, 'p-' + id, ease(seg(p, .17 + i * .015, .28 + i * .01)));
+      if(tall){
+        /* the same three entry points then carry a second set of names */
+        b = .43 + i * .03;
+        s = p < a ? 'dormant' : p < .31 ? 'active' : p < b ? 'complete' : p < settle ? 'active' : 'complete';
+      } else {
+        s = p < a ? 'dormant' : p < .31 ? 'active' : 'complete';
+      }
+      state(sys, id, s);
+      quiet(sys, 'p-' + id, s === 'complete');
+    }
+    if(tall) host.classList.toggle('is-swapped', p >= .40);
+
+    /* second group (wide layout): arrives between the first, already close to the grid */
+    for(i = 0; i < 3; i++){
+      id = 'i' + (i + 4);
+      b = .36 + i * .03;
+      offset(sys, id, 1 - ease(seg(p, b, b + .08)));
+      draw(sys, 'p-' + id, ease(seg(p, .45 + i * .015, .56 + i * .01)));
+      s = p < b ? 'hidden' : p < settle ? 'active' : 'complete';
+      state(sys, id, s);
+      quiet(sys, 'p-' + id, s === 'complete');
+    }
+
+    /* the merge and the hub */
+    state(sys, 'j1', p < .26 ? 'hidden' : p < settle ? 'active' : 'complete');
+    draw(sys, 'p-t1', ease(seg(p, .25, .30)));
+    quiet(sys, 'p-t1', p >= settle);
+    state(sys, 'hub', p < .08 ? 'hidden' : p < .29 ? 'dormant' : p < (tall ? .43 : .46) ? 'active' : p < settle ? 'processing' : 'complete');
+
+    /* outcomes, one at a time */
+    draw(sys, 'p-t2', ease(seg(p, settle, settle + .06)));
+    state(sys, 'j2', p < settle + .05 ? 'hidden' : 'active');
+    for(i = 0; i < 3; i++){
+      id = 'o' + (i + 1);
+      c = settle + .05 + i * .095;
+      draw(sys, 'p-' + id, ease(seg(p, c, c + .08)));
+      state(sys, id, p < c - .015 ? 'hidden' : p < c + .07 ? 'dormant' : 'active');
+    }
+
+    /* the words under the system, the light in the room, and how upright the system stands */
+    a = p < .17 ? 0 : p < settle ? 1 : 2;
+    if(a !== phase){ phase = a; words.forEach(function(w, k){ w.classList.toggle('is-on', k === a); }); }
+    section.style.setProperty('--glow', ease(seg(p, .26, .95)).toFixed(3));
+    section.style.setProperty('--tilt', (1 - ease(seg(p, .04, .6))).toFixed(3));
+  }
+
+  rebuild();
+  var pl = autoplay('connected', host, 8200, render);
+  rebuilders.push(function(){ rebuild(); pl.refresh(); });
 }
 
-/* The legend describes the canvas in front of the reader. */
-function syncLegend(plate, spec){
-  if(!plate) return;
-  var legend = plate.querySelector('.canvas-legend');
-  if(!legend) return;
-  var present = {};
-  spec.nodes.forEach(function(n){
-    present[n.kind === 'output' ? 'std' : n.kind] = true;
+/* ============================================================
+   what intelligent assistance can take on: one source branching
+   into five. Wide screens draw the tree; phones wake five nodes in turn.
+   ============================================================ */
+function initAssist(){
+  var wrap = document.getElementById('assist');
+  if(!wrap) return;
+  var tree = document.getElementById('assistTree');
+  var items = [].slice.call(wrap.querySelectorAll('.assist-list li'));
+  var minis = { n:{} };
+  items.forEach(function(li, i){
+    var slot = li.querySelector('.mini');
+    if(!slot) return;
+    slot.innerHTML = '<svg viewBox="-16 -16 32 32" aria-hidden="true" focusable="false">' + nodeMarkup({ id:'m' + i, kind:'in', x:0, y:0 }) + '</svg>';
+    var el = slot.querySelector('.nd');
+    minis.n['m' + i] = { el:el, pos:el.firstChild, s:'hidden', dx:0, dy:0, k:-1 };
   });
-  var map = { 'k-trigger':'trigger', 'k-flow':'std', 'k-ai':'ai', 'k-human':'human' };
-  Array.prototype.forEach.call(legend.children, function(item){
-    for(var cls in map){
-      if(item.classList.contains(cls)){
-        item.hidden = !present[map[cls]];
-        return;
+  var ORDER = [2, 1, 3, 0, 4];               /* the branches reach the middle first, then spread outward */
+  var sys = null, wide = false;
+
+  function rebuild(){
+    wide = !mqSmall.matches && items.length === 5 && !!tree;
+    if(!wide){ sys = null; if(tree) tree.innerHTML = ''; return; }
+    var W = Math.round(wrap.clientWidth);
+    var x = items.map(function(li){ return Math.round(li.offsetLeft + li.offsetWidth / 2); });
+    var c = x[2], Y = 56, N = 100;            /* the rail, and the row of nodes */
+    sys = build(tree, {
+      vb: '0 0 ' + W + ' 112', fit: 'xMinYMin meet',
+      nodes: [
+        { id:'hub', kind:'hub', r:13, x:c, y:18 },
+        { id:'jc', kind:'join', x:c, y:Y }, { id:'j1', kind:'join', x:x[1], y:Y }, { id:'j3', kind:'join', x:x[3], y:Y },
+        { id:'n0', kind:'out', x:x[0], y:N }, { id:'n1', kind:'out', x:x[1], y:N }, { id:'n2', kind:'out', x:x[2], y:N },
+        { id:'n3', kind:'out', x:x[3], y:N }, { id:'n4', kind:'out', x:x[4], y:N }
+      ],
+      paths: [
+        { id:'t', cls:'pth-out', d:'M' + c + ' 32 V' + (Y - 5) },
+        { id:'p2', cls:'pth-out', d:'M' + c + ' ' + (Y + 5) + ' V' + (N - 8) },
+        { id:'l', cls:'pth-out', d:'M' + (c - 5) + ' ' + Y + ' H' + (x[1] + 5) },
+        { id:'r', cls:'pth-out', d:'M' + (c + 5) + ' ' + Y + ' H' + (x[3] - 5) },
+        { id:'p1', cls:'pth-out', d:'M' + x[1] + ' ' + (Y + 5) + ' V' + (N - 8) },
+        { id:'p3', cls:'pth-out', d:'M' + x[3] + ' ' + (Y + 5) + ' V' + (N - 8) },
+        { id:'p0', cls:'pth-out', d:'M' + (x[1] - 5) + ' ' + Y + ' H' + (x[0] + 16) + ' Q' + x[0] + ' ' + Y + ' ' + x[0] + ' ' + (Y + 16) + ' V' + (N - 8) },
+        { id:'p4', cls:'pth-out', d:'M' + (x[3] + 5) + ' ' + Y + ' H' + (x[4] - 16) + ' Q' + x[4] + ' ' + Y + ' ' + x[4] + ' ' + (Y + 16) + ' V' + (N - 8) }
+      ]
+    });
+  }
+
+  function render(p){
+    var i, at;
+    if(wide && sys){
+      state(sys, 'hub', p < .03 ? 'hidden' : p < .1 ? 'dormant' : p < .9 ? 'processing' : 'complete');
+      draw(sys, 't', ease(seg(p, .1, .2)));
+      state(sys, 'jc', p < .19 ? 'hidden' : 'active');
+      draw(sys, 'p2', ease(seg(p, .2, .32)));
+      draw(sys, 'l', ease(seg(p, .2, .36)));
+      draw(sys, 'r', ease(seg(p, .2, .36)));
+      state(sys, 'j1', p < .35 ? 'hidden' : 'active');
+      state(sys, 'j3', p < .35 ? 'hidden' : 'active');
+      draw(sys, 'p1', ease(seg(p, .36, .48)));
+      draw(sys, 'p3', ease(seg(p, .4, .52)));
+      draw(sys, 'p0', ease(seg(p, .36, .62)));
+      draw(sys, 'p4', ease(seg(p, .4, .66)));
+      var reach = [.62, .48, .32, .52, .66];  /* when each branch arrives */
+      for(i = 0; i < 5; i++){
+        state(sys, 'n' + i, p < reach[i] - .14 ? 'hidden' : p < reach[i] ? 'dormant' : 'active');
+        items[i].classList.toggle('is-on', p >= reach[i]);
+      }
+    } else {
+      for(i = 0; i < items.length; i++){
+        at = .08 + i * .17;
+        state(minis, 'm' + i, p < at ? 'dormant' : 'active');
+        items[i].classList.toggle('is-on', p >= at);
       }
     }
-  });
-}
-
-/* The pan affordance appears only where the canvas genuinely overflows. */
-function syncPanHint(svg){
-  var scroller = svg.parentElement;
-  var plate = svg.closest('.canvas-plate');
-  if(!scroller || !plate) return;
-  var hint = plate.querySelector('.pan-hint');
-  if(!hint) return;
-  function check(){
-    hint.classList.toggle('is-on', scroller.scrollWidth > scroller.clientWidth + 2);
   }
-  check();
-  if(!svg.dataset.panBound){
-    svg.dataset.panBound = '1';
-    var rt;
-    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(check, 300); });
-  }
-}
-
-/* Tools, as they are → connections mapped → one working system.
-   Plays once when it arrives; tabs, if present, let the reader choose,
-   and a replay control runs the sequence again. */
-function initTransform(){
-  var svg = document.getElementById('transformCanvas');
-  if(!svg) return;
-  var NARROW = window.matchMedia('(max-width: 720px)');
-  function specFor(){ return NARROW.matches ? SPECS.transformMobile : SPECS.transform; }
-  var sc = mount('transformCanvas', specFor());
-  var buttons = Array.prototype.slice.call(document.querySelectorAll('#transformTabs button'));
-  var caption = document.getElementById('transformCaption');
-  var replay = document.getElementById('transformReplay');
-  var CAPTIONS = [
-    'Your tools, as they are today. A person moves information between them.',
-    'We map how information moves, then build the connections that carry it.',
-    'The same tools, working as one system. Information arrives where it is needed.'
-  ];
-  var state = -1, autoTimers = [];
-
-  function eachLink(fn){
-    Array.prototype.forEach.call(svg.querySelectorAll('.links path, .ports circle'), fn);
-  }
-  function hideLinks(){ eachLink(function(p){ p.style.opacity = 0; }); }
-  function restoreLinks(){ eachLink(function(p){ p.style.opacity = ''; }); }
-  function standNodes(){
-    Array.prototype.forEach.call(svg.querySelectorAll('.sysnode'), function(g){
-      g.style.transition = 'none'; g.style.opacity = 1; g.style.transform = 'none';
-    });
-  }
-  function clearAuto(){ autoTimers.forEach(clearTimeout); autoTimers = []; }
-
-  function set(i, manual){
-    if(i === state && !manual) return;
-    state = i;
-    buttons.forEach(function(b, bi){ b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
-    if(caption) caption.textContent = tr(CAPTIONS[i]);
-    sc.stop();
-
-    if(i === 0){
-      restoreLinks();
-      if(REDUCED){ sc.settle(); svg.classList.add('state-manual'); hideLinks(); }
-      else sc.seedNodesOnly();
-    } else if(i === 1){
-      svg.classList.remove('state-manual');
-      restoreLinks();
-      if(REDUCED){ sc.settle(); }
-      else { standNodes(); sc.connect(); }
-    } else {
-      svg.classList.remove('state-manual');
-      restoreLinks(); sc.settle();
-      if(REDUCED) sc.staticSignal(); else sc.flow();
-    }
-    if(manual) clearAuto();
-  }
-
-  function play(){
-    clearAuto();
-    set(0, true);
-    autoTimers.push(setTimeout(function(){ set(1); }, 1900));
-    autoTimers.push(setTimeout(function(){ set(2); }, 1900 + 2600));
-  }
-
-  buttons.forEach(function(b, i){ b.addEventListener('click', function(){ set(i, true); }); });
-  if(replay){
-    if(REDUCED){
-      replay.hidden = true;
-    } else {
-      var label = replay.querySelector('span');
-      if(label) label.textContent = tr('Replay');
-      replay.addEventListener('click', play);
-    }
-  }
-
-  /* With reduced motion there is no sequence to watch, so the reader
-     is shown the finished, connected system. */
-  if(REDUCED){ set(2); }
-  else {
-    sc.seed();
-    whenVisible(svg, function(){ if(state === -1) play(); });
-  }
-
-  var wasNarrow = NARROW.matches;
-  function onResize(){
-    if(NARROW.matches === wasNarrow) return;
-    wasNarrow = NARROW.matches;
-    clearAuto(); sc.stop();
-    sc = mount('transformCanvas', specFor());
-    var s = state === -1 ? 2 : state; state = -1;
-    set(REDUCED ? 2 : s, true);
-  }
-  if(NARROW.addEventListener) NARROW.addEventListener('change', onResize);
-}
-
-/* A canvas that names its own spec and has no tab strip. A second spec in
-   data-spec-mobile is the phone recomposition; crossing the breakpoint
-   rebuilds the system rather than scaling it. */
-function initNamedCanvases(){
-  Array.prototype.forEach.call(document.querySelectorAll('svg[data-spec]'), function(svg){
-    if(!svg.id) return;
-    var mobileKey = svg.dataset.specMobile;
-    var NARROW = window.matchMedia('(max-width: 720px)');
-    function specFor(){ return SPECS[(mobileKey && NARROW.matches) ? mobileKey : svg.dataset.spec]; }
-    if(!specFor()) return;
-    var sc = mount(svg.id, specFor());
-    if(!sc) return;
-    var started = false;
-    function run(){
-      started = true;
-      if(REDUCED){ sc.settle(); sc.staticSignal(); } else sc.grow();
-    }
-    if(REDUCED) run();
-    else { sc.seed(); whenVisible(svg, run); }
-    if(mobileKey && NARROW.addEventListener){
-      NARROW.addEventListener('change', function(){
-        sc.stop();
-        sc = mount(svg.id, specFor());
-        if(started) run(); else sc.seed();
-      });
-    }
-  });
-}
-
-function initScenarios(){
-  var svg = document.getElementById('scenarioCanvas');
-  if(!svg) return;
-  var buttons = Array.prototype.slice.call(document.querySelectorAll('#scenarioTabs button'));
-  var caption = document.getElementById('scenarioCaption');
-  var LIST = [
-    { key:'scenarioLead',    cap:'An inquiry is captured and recorded in your CRM. The system qualifies it, an assistant drafts the reply and scheduling is handled automatically. You review anything unusual before follow-up continues.' },
-    { key:'scenarioClient',  cap:'Onboarding runs on its own. Details are collected once, documents are requested, setup tasks are assigned and the system checks what comes back. A person approves before anything reaches the client.' },
-    { key:'scenarioService', cap:'A referral moves through scheduling and delivery. An assistant prepares the report from what the system already recorded, you approve it, and the invoice goes out with it.' }
-  ];
-  var sc = null, current = -1;
-
-  /* Below this width the vertical recomposition is used. The wide layout
-     is 1200 units across, so under roughly 900px its labels stop being
-     readable and the reader would have to drag to reach the end. */
-  var NARROW = window.matchMedia('(max-width: 900px)');
-  function specFor(i){
-    var key = LIST[i].key;
-    return (NARROW.matches && SPECS[key + 'Mobile']) || SPECS[key];
-  }
-
-  function render(i){
-    buttons.forEach(function(b, bi){ b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
-    if(caption) caption.textContent = tr(LIST[i].cap);
-    if(sc) sc.stop();
-    sc = mount('scenarioCanvas', specFor(i));
-    if(REDUCED){ sc.settle(); sc.staticSignal(); return; }
-    sc.grow();
-  }
-  function select(i){
-    if(i === current) return;
-    current = i;
-    render(i);
-  }
-  buttons.forEach(function(b, i){ b.addEventListener('click', function(){ select(i); }); });
-  /* Arrow keys move between tabs, as a tab list should. */
-  buttons.forEach(function(b, i){
-    b.addEventListener('keydown', function(e){
-      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-      if(!d) return;
-      e.preventDefault();
-      var n = (i + d + buttons.length) % buttons.length;
-      buttons[n].focus(); select(n);
-    });
-  });
-  /* Only auto-select if the visitor has not already chosen. */
-  whenVisible(svg, function(){ if(current === -1) select(0); });
-
-  var wasNarrow = NARROW.matches, rt;
-  function onResize(){
-    if(NARROW.matches === wasNarrow) return;
-    wasNarrow = NARROW.matches;
-    if(current !== -1) render(current);
-  }
-  if(NARROW.addEventListener) NARROW.addEventListener('change', onResize);
-  window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(onResize, 200); });
+  rebuild();
+  var pl = autoplay('assist', wrap, 4400, render, { at:.3 });
+  var again = function(){ rebuild(); pl.refresh(); };
+  rebuilders.push(again);
+  /* the tree is measured from the page, so it is drawn again when the columns change width */
+  var timer = 0;
+  window.addEventListener('resize', function(){ clearTimeout(timer); timer = setTimeout(again, 150); });
 }
 
 /* ============================================================
-   time calculator
-   The formula is v4's, unchanged: people × minutes × times per
-   week, over 46 working weeks, scaled by the share a system could
-   handle. What is new is the interface: sliders paired with
-   editable values, one plain-language result, and numbers that
-   ease to their new value rather than jumping.
+   human control
+   prepared work arrives at the checkpoint and waits. The page then
+   presses Approve itself, and the system continues.
    ============================================================ */
-var WORK_WEEKS = 46;   /* a year of the task, allowing for leave */
-var WORK_WEEK  = 40;   /* hours, for the "workweeks" translation */
+function initControl(){
+  var section = document.getElementById('control');
+  var host = document.getElementById('hcSystem');
+  if(!section || !host) return;
+  var stages = {};
+  [].forEach.call(section.querySelectorAll('.stage'), function(el){ stages[el.getAttribute('data-stage')] = el; });
+  var HC = {
+    wide: {
+      vb: '0 34 1200 232',
+      nodes: [
+        { id:'a1', kind:'in', x:200, y:70, label:T.replyDraft, la:'l', brief:true, dx:-26, dy:-10 },
+        { id:'a2', kind:'in', x:200, y:150, label:T.invoiceReady, la:'l', brief:true, dx:20, dy:8 },
+        { id:'a3', kind:'in', x:200, y:230, label:T.bookingAsk, la:'l', brief:true, dx:-14, dy:16 },
+        { id:'j1', kind:'join', x:300, y:150 },
+        { id:'gate', kind:'gate', x:600, y:150 },
+        { id:'j2', kind:'join', x:900, y:150 },
+        { id:'b1', kind:'out', x:1000, y:70, label:T.replySent, la:'r', brief:true },
+        { id:'b2', kind:'out', x:1000, y:150, label:T.invoiceSent, la:'r', brief:true },
+        { id:'b3', kind:'out', x:1000, y:230, label:T.bookingOk, la:'r', brief:true }
+      ],
+      paths: [
+        { id:'p-a1', d:'M208 70 H284 Q300 70 300 86 V145' },
+        { id:'p-a2', d:'M208 150 H295' },
+        { id:'p-a3', d:'M208 230 H284 Q300 230 300 214 V155' },
+        { id:'p-t1', d:'M305 150 H586' },
+        { id:'p-t2', cls:'pth-out pth-next', d:'M614 150 H895' },
+        { id:'p-b1', cls:'pth-out pth-next', d:'M900 145 V86 Q900 70 916 70 H992' },
+        { id:'p-b2', cls:'pth-out pth-next', d:'M905 150 H992' },
+        { id:'p-b3', cls:'pth-out pth-next', d:'M900 155 V214 Q900 230 916 230 H992' }
+      ]
+    },
+    tall: {
+      vb: '0 0 100 520',
+      fit: 'xMinYMid meet',
+      nodes: [
+        { id:'a1', kind:'in', x:20, y:36, dx:-5, dy:-6 },
+        { id:'a2', kind:'in', x:50, y:36, dx:0, dy:-10 },
+        { id:'a3', kind:'in', x:80, y:36, dx:6, dy:-5 },
+        { id:'j1', kind:'join', x:50, y:96 },
+        { id:'gate', kind:'gate', x:50, y:244 },
+        { id:'j2', kind:'join', x:50, y:404 },
+        { id:'b1', kind:'out', x:20, y:470 },
+        { id:'b2', kind:'out', x:50, y:470 },
+        { id:'b3', kind:'out', x:80, y:470 }
+      ],
+      paths: [
+        { id:'p-a1', d:'M20 44 V80 Q20 96 36 96 H45' },
+        { id:'p-a2', d:'M50 44 V91' },
+        { id:'p-a3', d:'M80 44 V80 Q80 96 64 96 H55' },
+        { id:'p-t1', d:'M50 101 V230' },
+        { id:'p-t2', cls:'pth-out pth-next', d:'M50 258 V399' },
+        { id:'p-b1', cls:'pth-out pth-next', d:'M45 404 H36 Q20 404 20 420 V462' },
+        { id:'p-b2', cls:'pth-out pth-next', d:'M50 409 V462' },
+        { id:'p-b3', cls:'pth-out pth-next', d:'M55 404 H64 Q80 404 80 420 V462' }
+      ]
+    }
+  };
+  var sys, approved = false, waiting = null, timers = [];
+  var REACH = .47;                            /* the work arrives at the checkpoint */
 
+  function setStage(name, mode){
+    var el = stages[name];
+    if(!el) return;
+    el.classList.toggle('is-on', mode === 'on');
+    el.classList.toggle('is-done', mode === 'done');
+  }
+  function later(ms, fn){ timers.push(setTimeout(fn, ms)); }
+  function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+
+  /* everything up to the checkpoint */
+  function scrub(p){
+    var i, id, a, s, at = p >= REACH;
+    for(i = 0; i < 3; i++){
+      id = 'a' + (i + 1);
+      a = .05 + i * .04;
+      offset(sys, id, 1 - ease(seg(p, .06 + i * .03, .2 + i * .03)));
+      draw(sys, 'p-' + id, ease(seg(p, .2 + i * .02, .33 + i * .01)));
+      s = p < a ? 'dormant' : p < .42 ? 'active' : 'complete';
+      state(sys, id, s);
+      quiet(sys, 'p-' + id, s === 'complete');
+      state(sys, 'b' + (i + 1), 'dormant');
+      draw(sys, 'p-b' + (i + 1), 0);
+    }
+    state(sys, 'j1', p < .31 ? 'hidden' : at ? 'complete' : 'active');
+    draw(sys, 'p-t1', ease(seg(p, .32, REACH)));
+    quiet(sys, 'p-t1', false);
+    state(sys, 'gate', at ? 'decision' : 'dormant');
+    state(sys, 'j2', 'hidden');
+    draw(sys, 'p-t2', 0);
+    setStage('prepare', at ? 'done' : 'on');
+    setStage('decide', at ? 'on' : '');
+    setStage('continue', '');
+    section.style.setProperty('--glow', ease(seg(p, .1, REACH)).toFixed(3));
+    if(at !== waiting){ waiting = at; section.classList.toggle('is-waiting', at); }
+  }
+
+  /* after approval: the amber resolves, the path continues, the next nodes wake one at a time */
+  function showApproved(instant){
+    var gap = instant ? 0 : 1;
+    approved = true;
+    section.classList.remove('is-waiting', 'is-pressed');
+    section.classList.add('is-approved');
+    section.classList.toggle('is-timed', !instant);
+    for(var i = 1; i <= 3; i++){ state(sys, 'a' + i, 'complete'); offset(sys, 'a' + i, 0); draw(sys, 'p-a' + i, 1); quiet(sys, 'p-a' + i, true); }
+    state(sys, 'j1', 'complete'); draw(sys, 'p-t1', 1); quiet(sys, 'p-t1', true);
+    state(sys, 'gate', 'complete');
+    setStage('prepare', 'done'); setStage('decide', 'done');
+    var step = function(ms, fn){ if(instant) fn(); else later(ms, fn); };
+    step(150 * gap, function(){ draw(sys, 'p-t2', 1); });
+    step(700 * gap, function(){ state(sys, 'j2', 'active'); setStage('continue', 'on'); });
+    [1, 2, 3].forEach(function(k){
+      step((800 + k * 150) * gap, function(){ draw(sys, 'p-b' + k, 1); });
+      step((1250 + k * 230) * gap, function(){ state(sys, 'b' + k, 'active'); });
+    });
+    section.style.setProperty('--glow', '1');
+  }
+  function clearApproved(){
+    clearTimers();
+    approved = false;
+    waiting = null;
+    section.classList.remove('is-approved', 'is-timed', 'is-pressed', 'is-waiting');
+  }
+
+  function rebuild(){ sys = build(host, mqSmall.matches ? HC.tall : HC.wide); waiting = null; }
+  rebuild();
+
+  var pl = autoplay('control', host, 3600, function(q){ if(!approved) scrub(q * (REACH + .03)); }, {
+    /* the checkpoint holds for a moment, then the page presses Approve */
+    end: function(){
+      if(FLAT) return;
+      later(1500, function(){ section.classList.add('is-pressed'); });
+      later(1950, function(){ showApproved(false); });
+    },
+    reset: clearApproved,
+    flat: function(){ showApproved(true); },
+    seek: function(p){
+      clearApproved();
+      scrub(Math.min(1, p / .6) * (REACH + .03));
+      if(p >= .7 && p < .85) section.classList.add('is-pressed');
+      if(p >= .85) showApproved(true);
+    }
+  });
+  rebuilders.push(function(){
+    var was = approved;
+    rebuild();
+    if(was){ clearTimers(); showApproved(true); } else pl.refresh();
+  });
+}
+
+/* ============================================================
+   a real example: a photo of a card, a question, two address books
+   ============================================================ */
+function initExample(){
+  var host = document.getElementById('exSystem');
+  if(!host) return;
+  var EX = {
+    wide: {
+      vb: '0 0 420 170',
+      nodes: [
+        { id:'e0', kind:'in', x:14, y:85 },
+        { id:'gate', kind:'gate', x:120, y:85, label:T.asks, la:'b', brief:true },
+        { id:'j', kind:'join', x:184, y:85 },
+        { id:'g1', kind:'out', x:236, y:45, label:T.google, la:'r' },
+        { id:'g2', kind:'out', x:236, y:125, label:T.outlook, la:'r' }
+      ],
+      paths: [
+        { id:'p-e', d:'M22 85 H106' },
+        { id:'p-t', cls:'pth-out', d:'M134 85 H179' },
+        { id:'p-g1', cls:'pth-out', d:'M184 80 V61 Q184 45 200 45 H228' },
+        { id:'p-g2', cls:'pth-out', d:'M184 90 V109 Q184 125 200 125 H228' }
+      ]
+    },
+    tall: {
+      vb: '0 0 360 200', fit: 'xMinYMin meet',
+      nodes: [
+        { id:'e0', kind:'in', x:66, y:12 },
+        { id:'gate', kind:'gate', x:66, y:78, label:T.asks, la:'r', brief:true },
+        { id:'j', kind:'join', x:66, y:136 },
+        { id:'g1', kind:'out', x:156, y:136, label:T.google, la:'r' },
+        { id:'g2', kind:'out', x:156, y:182, label:T.outlook, la:'r' }
+      ],
+      paths: [
+        { id:'p-e', d:'M66 20 V64' },
+        { id:'p-t', cls:'pth-out', d:'M66 92 V131' },
+        { id:'p-g1', cls:'pth-out', d:'M71 136 H148' },
+        { id:'p-g2', cls:'pth-out', d:'M66 141 V166 Q66 182 82 182 H148' }
+      ]
+    }
+  };
+  var sys;
+  function rebuild(){ sys = build(host, mqSmall.matches ? EX.tall : EX.wide); }
+  function render(p){
+    state(sys, 'e0', p < .03 ? 'hidden' : p < .34 ? 'active' : 'complete');
+    draw(sys, 'p-e', ease(seg(p, .08, .3)));
+    quiet(sys, 'p-e', p >= .6);
+    state(sys, 'gate', p < .31 ? 'dormant' : p < .6 ? 'decision' : 'complete');
+    draw(sys, 'p-t', ease(seg(p, .62, .7)));
+    state(sys, 'j', p < .69 ? 'hidden' : 'active');
+    draw(sys, 'p-g1', ease(seg(p, .7, .8)));
+    draw(sys, 'p-g2', ease(seg(p, .76, .86)));
+    state(sys, 'g1', p < .69 ? 'hidden' : p < .8 ? 'dormant' : 'active');
+    state(sys, 'g2', p < .75 ? 'hidden' : p < .86 ? 'dormant' : 'active');
+  }
+  rebuild();
+  var pl = autoplay('example', host, 5200, render);
+  rebuilders.push(function(){ rebuild(); pl.refresh(); });
+}
+
+/* ============================================================
+   capacity calculator
+   ============================================================ */
 function initCalc(){
-  var root = document.getElementById('calc-widget');
-  if(!root) return;
+  var WORK_WEEKS = 46, WORK_WEEK = 40;
   var people  = document.getElementById('calcPeople');
   var minutes = document.getElementById('calcMinutes');
   var times   = document.getElementById('calcTimes');
   var share   = document.getElementById('calcShare');
-  var flow    = document.getElementById('calcFlow');
-  var inputs  = document.getElementById('calcForm');
-  var out     = document.getElementById('calcOut');
-  if(!people || !minutes || !times || !share || !flow || !inputs || !out) return;
+  if(!people || !minutes || !times || !share) return;
 
   var fields = {
     savedWeek: document.getElementById('calcSavedWeek'),
@@ -1480,6 +730,7 @@ function initCalc(){
     month:     document.getElementById('calcMonth'),
     monthUnit: document.getElementById('calcMonthUnit'),
     week:      document.getElementById('calcWeek'),
+    weekUnit:  document.getElementById('calcWeekUnit'),
     saved:     document.getElementById('calcSaved'),
     savedWeeks:document.getElementById('calcSavedWeeks'),
     shareOut:  document.getElementById('calcShareOut'),
@@ -1487,7 +738,7 @@ function initCalc(){
   };
 
   /* Each number field has a slider partner. The slider covers the
-     common range; the number field still accepts the full v4 range,
+     common range; the number field still accepts the full range,
      so a larger team is never capped by the control. */
   var pairs = [
     { num:people,  range:document.getElementById('calcPeopleRange'),  min:1, max:999 },
@@ -1501,26 +752,25 @@ function initCalc(){
     var v = Math.min(mx, Math.max(mn, parseFloat(range.value) || mn));
     range.style.setProperty('--fill', ((v - mn) / (mx - mn) * 100) + '%');
   }
-
   /* Clamp rather than reject. A silently wrong total is worse than a nudge. */
   function val(el, min, max, fallback){
     var n = parseFloat(el.value);
     if(!isFinite(n)) return fallback;
     return Math.min(max, Math.max(min, n));
   }
-  var LOCALE = PT_ON ? 'pt-BR' : 'en-US';
   function fmt(n, dec){
-    return n.toLocaleString(LOCALE, { minimumFractionDigits:0, maximumFractionDigits:dec || 0 });
+    return n.toLocaleString(T.locale, { minimumFractionDigits:0, maximumFractionDigits:dec || 0 });
   }
   /* Small weekly figures keep one decimal, so 0.4 hours never reads as 0. */
   function weekDec(n){ return n < 10 ? 1 : 0; }
   function roundTo(n, dec){ var f = Math.pow(10, dec); return Math.round(n * f) / f; }
-  function weeksLabel(hours){
-    var w = hours / WORK_WEEK;
-    if(w < 0.5) return tr('under half a workweek');
+  function hours(n){ return n === 1 ? T.hour : T.hours; }
+  function weeksLabel(h){
+    var w = h / WORK_WEEK;
+    if(w < 0.5) return T.weeksUnder;
     var n = Math.round(w);
-    if(n <= 1) return tr('about one workweek');
-    return tr('about {n} workweeks').replace('{n}', n);
+    if(n <= 1) return T.weeksOne;
+    return T.weeksMany(n);
   }
 
   /* ---- eased numbers ---- */
@@ -1535,12 +785,12 @@ function initCalc(){
       if(node._raf) cancelAnimationFrame(node._raf);
       node._cur = to; node.textContent = fmt(roundTo(to, dec), dec);
     }
-    if(REDUCED || from === to){ land(); return; }
-    var t0 = null, D = MOTION.slow;
+    if(FLAT || from === to){ land(); return; }
+    var t0 = null, D = 520;
     function step(ts){
       if(t0 === null) t0 = ts;
       var k = Math.min(1, (ts - t0) / D);
-      var e = 1 - Math.pow(1 - k, 5);   /* the --ease curve, near enough */
+      var e = 1 - Math.pow(1 - k, 5);
       node._cur = from + (to - from) * e;
       node.textContent = fmt(roundTo(node._cur, dec), dec);
       if(k < 1) node._raf = requestAnimationFrame(step);
@@ -1566,337 +816,70 @@ function initCalc(){
     var dw = weekDec(savedWeek);
     var shown = roundTo(savedWeek, dw);
     tween(fields.savedWeek, savedWeek, dw);
-    if(fields.unit) fields.unit.textContent = tr(shown === 1 ? 'hour' : 'hours');
+    if(fields.unit) fields.unit.textContent = hours(shown);
     var dm = savedMonth < 10 ? 1 : 0;
     tween(fields.month, savedMonth, dm);
-    if(fields.monthUnit) fields.monthUnit.textContent = tr(roundTo(savedMonth, dm) === 1 ? 'hour' : 'hours');
-    tween(fields.week, hoursWeek, weekDec(hoursWeek));
+    if(fields.monthUnit) fields.monthUnit.textContent = hours(roundTo(savedMonth, dm));
+    var dh = weekDec(hoursWeek);
+    tween(fields.week, hoursWeek, dh);
+    if(fields.weekUnit) fields.weekUnit.textContent = hours(roundTo(hoursWeek, dh));
     tween(fields.saved, savedYear, 0);
     if(fields.savedWeeks) fields.savedWeeks.textContent = weeksLabel(savedYear);
-    fields.shareOut.textContent = Math.round(sh * 100) + '%';
+    if(fields.shareOut) fields.shareOut.textContent = Math.round(sh * 100) + '%';
 
     /* The eased digits are hidden from assistive tech; one settled
        sentence is announced once the visitor pauses. */
     if(fields.live){
       clearTimeout(liveTimer);
       liveTimer = setTimeout(function(){
-        fields.live.textContent = tr('You could create {n} {u} of additional capacity per week.')
-          .replace('{n}', fmt(shown, dw)).replace('{u}', tr(shown === 1 ? 'hour' : 'hours'));
+        fields.live.textContent = T.live(fmt(shown, dw), hours(shown), fmt(Math.round(savedYear), 0), weeksLabel(savedYear));
       }, 600);
     }
   }
 
-  /* ---- connectors ---------------------------------------------------
-     The controls converging into one outcome, drawn with the same
-     curve the system canvases use. Measured from the live layout, so
-     it follows the controls when they wrap or stack. */
-  var pulses = [];
-  function centerX(elm, box){
-    var r = elm.getBoundingClientRect();
-    return Math.round(r.left - box.left + r.width / 2);
-  }
-  function geometry(){
-    var box = flow.getBoundingClientRect();
-    if(!box.width) return null;
-    var fieldEls = Array.prototype.slice.call(inputs.querySelectorAll('.calc-field'));
-    var lead = out.querySelector('.calc-result.is-lead') || out.querySelector('.calc-result');
-    if(!fieldEls.length || !lead) return null;
-    var w = Math.round(box.width);
-    var xs = fieldEls.map(function(e){ return centerX(e, box); });
-    /* When the controls stack, every stem would start from one point and
-       the drawing would collapse into a single line. Fan them instead. */
-    var distinct = xs.filter(function(v, i){ return xs.indexOf(v) === i; }).length;
-    if(distinct < xs.length && xs.length > 1){
-      var pad = Math.round(w * 0.14);
-      xs = xs.map(function(_, i){
-        return Math.round(pad + (w - pad * 2) * (i / (xs.length - 1)));
-      });
+  pairs.forEach(function(pair){
+    if(pair.range){
+      pair.range.addEventListener('input', function(){ pair.num.value = pair.range.value; fill(pair.range); compute(); });
+      fill(pair.range);
     }
-    return {
-      w: w, h: Math.round(box.height),
-      xs: xs,
-      outX: centerX(lead, box),
-      junction: Math.round(box.height * 0.62)
-    };
-  }
-  function draw(){
-    var g = geometry();
-    if(!g) return;
-    flow.setAttribute('viewBox', '0 0 ' + g.w + ' ' + g.h);
-    flow.innerHTML = '';
-
-    var d = g.xs.map(function(x){
-      return linkPath([x, 0], [g.outX, g.junction], true);
-    }).join(' ');
-    d += ' M' + g.outX + ' ' + g.junction + 'V' + g.h;
-    flow.appendChild(el('path', { d:d.trim() }));
-    flow.appendChild(el('circle', { cx:g.outX, cy:g.junction, r:3.2, fill:'#fff', stroke:BLUE, 'stroke-width':1.2 }));
-
-    pulses = g.xs.map(function(x){
-      var p = el('path', { 'class':'calc-pulse',
-        d: linkPath([x, 0], [g.outX, g.junction], true) + 'V' + g.h });
-      flow.appendChild(p);
-      return p;
+    pair.num.addEventListener('input', function(){
+      if(pair.range){ pair.range.value = val(pair.num, pair.min, pair.max, pair.min); fill(pair.range); }
+      compute();
     });
-  }
-
-  function pulse(){
-    if(REDUCED) return;
-    pulses.forEach(function(p, i){
-      var len = p.getTotalLength();
-      if(!len) return;
-      p.style.transition = 'none';
-      p.style.strokeDasharray = (len * 0.16) + ' ' + len;
-      p.style.strokeDashoffset = len * 0.16;
-      p.style.opacity = '.9';
-      void p.getBoundingClientRect();
-      p.style.transition = 'stroke-dashoffset ' + MOTION.travel + 'ms ' + EASE + ' ' + (i * 60) + 'ms, ' +
-                           'opacity ' + MOTION.slow + 'ms ' + EASE + ' ' + (360 + i * 60) + 'ms';
-      p.style.strokeDashoffset = -len;
-      p.style.opacity = '0';
-    });
-  }
-
-  var rafId = null, lastPulse = 0;
-  function update(){
-    compute();
-    /* A slider fires many events per second; one pulse per gesture is
-       enough to show the connection, more reads as noise. */
-    var now = Date.now();
-    if(now - lastPulse < 650) return;
-    lastPulse = now;
-    if(rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(function(){ pulse(); });
-  }
-
-  pairs.forEach(function(pr){
-    if(!pr.range) return;
-    pr.range.addEventListener('input', function(){
-      pr.num.value = pr.range.value; fill(pr.range); update();
-    });
-    pr.num.addEventListener('input', function(){
-      var v = parseFloat(pr.num.value);
-      if(isFinite(v)){ pr.range.value = Math.min(parseFloat(pr.range.max), Math.max(parseFloat(pr.range.min), v)); fill(pr.range); }
-      update();
-    });
-    /* On leaving the field, show the value that was actually used. */
-    pr.num.addEventListener('change', function(){
-      pr.num.value = val(pr.num, pr.min, pr.max, pr.min);
-      update();
-    });
-    fill(pr.range);
+    /* Put a cleared or out-of-range entry back to a real value on leaving the field. */
+    pair.num.addEventListener('blur', function(){ pair.num.value = val(pair.num, pair.min, pair.max, pair.min); });
   });
-  share.addEventListener('input', function(){ fill(share); update(); });
+  share.addEventListener('input', function(){ fill(share); compute(); });
   fill(share);
-  inputs.addEventListener('submit', function(e){ e.preventDefault(); });
-
+  var form = document.getElementById('calcForm');
+  if(form) form.addEventListener('submit', function(e){ e.preventDefault(); });
   compute();
-  draw();
-  /* Fonts land after first paint and change the field widths, so measure
-     again once they have settled rather than drawing against a guess. */
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
 
-  var rt;
-  window.addEventListener('resize', function(){
-    clearTimeout(rt); rt = setTimeout(draw, 180);
-  });
-  whenVisible(root, function(){ draw(); if(!REDUCED) pulse(); });
+  /* the result counts up once, the first time the visitor reaches it */
+  var out = document.querySelector('.calc-out');
+  if(out && !FLAT && !HOLD && 'IntersectionObserver' in window){
+    var seen = new IntersectionObserver(function(entries){
+      if(!entries[0].isIntersecting) return;
+      seen.disconnect();
+      [fields.savedWeek, fields.month, fields.week, fields.saved].forEach(function(n){ if(n) n._cur = 0; });
+      compute();
+    }, { threshold:.5 });
+    seen.observe(out);
+  }
 }
 
-/* Branches leaning toward the button they converge on. */
-function initCta(){
-  var svg = document.getElementById('ctaCanvas');
-  if(!svg) return;
-  var narrow = window.matchMedia('(max-width: 620px)').matches;
-  var sc = mount('ctaCanvas', narrow ? SPECS.ctaMobile : SPECS.cta);
-  if(REDUCED){ sc.settle(); sc.staticSignal(); }
-  else { sc.seed(); whenVisible(svg, function(){ sc.grow(); }); }
-
-  var wasNarrow = narrow, rt;
-  window.addEventListener('resize', function(){
-    clearTimeout(rt);
-    rt = setTimeout(function(){
-      var isNarrow = window.matchMedia('(max-width: 620px)').matches;
-      if(isNarrow === wasNarrow) return;
-      wasNarrow = isNarrow;
-      sc.stop();
-      sc = mount('ctaCanvas', isNarrow ? SPECS.ctaMobile : SPECS.cta);
-      if(REDUCED){ sc.settle(); sc.staticSignal(); } else { sc.grow(); }
-    }, 320);
-  });
-
-  if(REDUCED) return;
-  var btn = document.querySelector('.final-cta .btn-solid');
-  if(!btn) return;
-  btn.addEventListener('pointerenter', function(){ svg.classList.add('lean'); });
-  btn.addEventListener('pointerleave', function(){ svg.classList.remove('lean'); });
-  btn.addEventListener('focus', function(){ svg.classList.add('lean'); });
-  btn.addEventListener('blur', function(){ svg.classList.remove('lean'); });
-}
-
-/* ============================================================
-   process lines
-   How it works and Oversight share one behaviour. When the line is
-   on screen the first point lights, a short segment of light travels
-   the line to the next point, that point lights, and so on to the
-   end; then the line rests in a quiet active state. Once per page
-   view: leaving and coming back does not replay it. The light's path
-   is measured from the points themselves, so the same code runs the
-   line across (desktop) and down (phones).
-   ============================================================ */
-function initProcessLines(){
-  var lines = Array.prototype.slice.call(document.querySelectorAll('.pline'));
-  if(!lines.length) return;
-  var PAUSE = 150;
-
-  lines.forEach(function(line){
-    var nodes = Array.prototype.slice.call(line.querySelectorAll('li'));
-    if(nodes.length < 2) return;
-    var fill = document.createElement('span');
-    fill.className = 'pl-fill';
-    fill.setAttribute('aria-hidden', 'true');
-    line.appendChild(fill);
-    var state = 'idle', reached = 0, timers = [];
-
-    function centres(){
-      var box = line.getBoundingClientRect();
-      return nodes.map(function(li){
-        var r = li.getBoundingClientRect(), d = getComputedStyle(li, '::before');
-        return {
-          x: r.left - box.left + parseFloat(d.left) + (parseFloat(d.marginLeft) || 0) + parseFloat(d.width) / 2,
-          y: r.top - box.top + parseFloat(d.top) + (parseFloat(d.marginTop) || 0) + parseFloat(d.height) / 2
-        };
-      });
-    }
-    /* The lit trail runs from the first point to point i. */
-    function place(i, animate){
-      var c = centres(), a = c[0], z = c[c.length - 1];
-      var down = Math.abs(z.y - a.y) > Math.abs(z.x - a.x);
-      if(!animate) fill.style.transition = 'none';
-      line.classList.toggle('is-y', down);
-      if(down){
-        fill.style.left = (a.x - 4.5) + 'px'; fill.style.top = a.y + 'px';
-        fill.style.width = ''; fill.style.height = Math.max(0, c[i].y - a.y) + 'px';
-      } else {
-        fill.style.left = a.x + 'px'; fill.style.top = (a.y - 4.5) + 'px';
-        fill.style.height = ''; fill.style.width = Math.max(0, c[i].x - a.x) + 'px';
-      }
-      if(!animate){ void fill.offsetWidth; fill.style.transition = ''; }
-    }
-    function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
-    function finish(){
-      timers.forEach(clearTimeout); timers = [];
-      nodes.forEach(function(n){ n.classList.add('is-lit'); });
-      line.classList.remove('is-moving', 'from-human');
-      line.classList.add('is-done');
-      reached = nodes.length - 1; state = 'done';
-      place(reached, false);
-    }
-    function run(){
-      if(state !== 'idle') return;
-      state = 'running';
-      place(0, false);
-      nodes[0].classList.add('is-lit');
-      var t = MOTION.normal + PAUSE;
-      nodes.slice(1).forEach(function(node, k){
-        var i = k + 1;
-        at(t, function(){
-          line.classList.toggle('from-human', nodes[i - 1].classList.contains('pl-human'));
-          line.classList.add('is-moving');
-          place(i, true);
-        });
-        at(t + MOTION.travel, function(){
-          line.classList.remove('is-moving');
-          node.classList.add('is-lit');
-          reached = i;
-        });
-        t += MOTION.travel + MOTION.normal + PAUSE;
-      });
-      at(t - PAUSE, finish);
-    }
-
-    var rt;
-    window.addEventListener('resize', function(){
-      clearTimeout(rt);
-      rt = setTimeout(function(){
-        if(state === 'running') finish();
-        else place(state === 'done' ? reached : 0, false);
-      }, 150);
-    });
-
-    if(REDUCED || !('IntersectionObserver' in window)){ finish(); return; }
-    place(0, false);
-    var io = new IntersectionObserver(function(entries){
-      if(!entries.some(function(e){ return e.isIntersecting; })) return;
-      io.disconnect();
-      /* begin once the block has started to arrive */
-      at(240, run);
-    }, { threshold: 0.5, rootMargin: '0px 0px -8% 0px' });
-    io.observe(line);
-  });
-}
-
-/* ============================================================
-   boot
-   The canvases are enhancement. A failure in any of them must
-   never take the content layer down with it.
-   ============================================================ */
 function boot(){
-  localiseSpecs();
-  initReveals();
-  [initSectionNav, initHeader, initLogoLight, initParallax, initProcessLines].forEach(function(fn){
-    try{ fn(); }catch(err){ console.error('[BOTAN.IA] interface enhancement disabled:', err); }
-  });
-  [initTransform, initScenarios, initNamedCanvases, initCta, initCalc].forEach(function(fn){
-    try{ fn(); }catch(err){ console.error('[BOTAN.IA] canvas disabled:', err); }
-  });
+  initHeader();
+  initHero();
+  initFriction();
+  initConnected();
+  initAssist();
+  initControl();
+  initCalc();
+  initExample();
+  var relayout = function(){ rebuilders.forEach(function(fn){ fn(); }); };
+  if(mqSmall.addEventListener) mqSmall.addEventListener('change', relayout); else mqSmall.addListener(relayout);
 }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
-})();
-
-/* ============================================================
-   MOBILE NAVIGATION
-   Carried over from v4. Labels follow the page language.
-   ============================================================ */
-(function(){
-'use strict';
-var toggle = document.getElementById('navToggle');
-var panel  = document.getElementById('primaryNav');
-if(!toggle || !panel) return;
-var PT = /^pt/i.test(document.documentElement.getAttribute('lang') || '');
-var OPEN = PT ? 'Abrir menu' : 'Open menu', CLOSE = PT ? 'Fechar menu' : 'Close menu';
-
-function close(){
-  panel.classList.remove('open');
-  toggle.setAttribute('aria-expanded', 'false');
-  toggle.setAttribute('aria-label', OPEN);
-}
-function open(){
-  panel.classList.add('open');
-  toggle.setAttribute('aria-expanded', 'true');
-  toggle.setAttribute('aria-label', CLOSE);
-}
-/* pointerdown, not click. Waiting for release puts the whole press
-   interval between the tap and any feedback */
-toggle.addEventListener('pointerdown', function(e){
-  e.preventDefault();
-  if(panel.classList.contains('open')) close(); else open();
-});
-toggle.addEventListener('click', function(e){ e.preventDefault(); });
-toggle.addEventListener('keydown', function(e){
-  if(e.key === 'Enter' || e.key === ' '){
-    e.preventDefault();
-    if(panel.classList.contains('open')) close(); else open();
-  }
-});
-panel.addEventListener('click', function(e){ if(e.target.closest('a')) close(); });
-document.addEventListener('keydown', function(e){
-  if(e.key === 'Escape' && panel.classList.contains('open')){ close(); toggle.focus(); }
-});
-var rt;
-window.addEventListener('resize', function(){
-  clearTimeout(rt);
-  rt = setTimeout(function(){ if(window.innerWidth > 800) close(); }, 200);
-});
 })();

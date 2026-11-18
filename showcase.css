@@ -239,3 +239,28 @@
 @media (prefers-reduced-motion:reduce){
   .cs-deck.is-deck .cs-slide,.cs-tab,.cs-tab::after{transition:none;}
 }
+
+
+/* ============================================================
+   second generation: the case study in the new visual language.
+   Appended to the published showcase.css; only what changes.
+   ============================================================ */
+/* no rules drawn before text: spacing separates the parts */
+.cs-facts{border-top:0; padding-top:0;}
+/* the whole case study on one page: each part follows the last */
+.cs-slide + .cs-slide{border-top:0; padding-top:0; margin-top:clamp(64px, 8vw, 112px);}
+.cs-cta{border-top:0; padding-top:0;}
+.cs-bar{border-bottom:0;}
+.cs-rec + .cs-rec{border-top:0;}
+/* the steps of the solution: a node for each, amber where the client decides */
+.process-rail{display:none;}
+.process-list{display:grid;}
+.cs-flow .process li{position:relative; padding:0 0 0 2.25rem;}
+.cs-flow .process li::before{content:""; position:absolute; left:0; top:.32em; width:15px; height:15px; border-radius:50%;
+  border:1.5px solid var(--indigo); background:radial-gradient(circle at 50% 50%, var(--indigo) 0 3px, #fff 3.5px);}
+.cs-flow .process li.pl-human::before{border-color:var(--amber-ink); background:var(--amber);}
+.cs-flow .process h3{font-size:var(--heading-sm); margin-bottom:.4rem;}
+.cs-flow .process p{color:var(--ink-2);}
+.cs-copy .eyebrow{margin-bottom:14px;}
+.cs-copy h2{margin-bottom:18px;}
+.cs-copy p + p{margin-top:12px;}
